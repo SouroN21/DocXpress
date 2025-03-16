@@ -30,9 +30,7 @@ exports.createAppointment = async (req, res) => {
 exports.getAllAppointments = async (req, res) => {
   try {
     const appointments = await Appointment.find()
-      .populate("patientId", "fullName email") 
-      .populate("doctorId", "fullName email"); 
-
+    
     res.status(200).json(appointments);
   } catch (error) {
     res.status(500).json({ message: "Error fetching appointments", error });
@@ -44,8 +42,7 @@ exports.getPatientAppointments = async (req, res) => {
   try {
     const { patientId } = req.params;
     const appointments = await Appointment.find({ patientId })
-      .populate("doctorId", "fullName email");
-
+      
     res.status(200).json(appointments);
   } catch (error) {
     res.status(500).json({ message: "Error fetching appointments", error });
@@ -57,8 +54,7 @@ exports.getDoctorAppointments = async (req, res) => {
   try {
     const { doctorId } = req.params;
     const appointments = await Appointment.find({ doctorId })
-      .populate("patientId", "fullName email");
-
+     
     res.status(200).json(appointments);
   } catch (error) {
     res.status(500).json({ message: "Error fetching appointments", error });
