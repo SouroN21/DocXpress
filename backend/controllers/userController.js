@@ -7,6 +7,10 @@ const createUser = async (req, res) => {
   try {
     const { firstName, lastName, email, password, role, phoneNumber } = req.body;
 
+    if (!firstName || !lastName || !email || !password || !role) {
+      return res.status(400).json({ message: "All required fields must be provided" });
+    }
+
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ message: "User already exists" });
@@ -16,13 +20,13 @@ const createUser = async (req, res) => {
       firstName,
       lastName,
       email,
-      password,
-      role,
+      password, // Password hashing should be in User model pre-save hook
+      role: role.toLowerCase(), // Normalize role
       phoneNumber,
     });
 
     await newUser.save();
-    res.status(201).json({ message: "User created successfully", user: newUser });
+    res.status(201).json({ message: "User created successfully", user: newUser.toJSON() });
   } catch (error) {
     console.error('Error creating user:', error);
     res.status(500).json({ message: "Error creating user", error: error.message });
@@ -32,8 +36,11 @@ const createUser = async (req, res) => {
 const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
-    const user = await User.findOne({ email });
+    if (!email || !password) {
+      return res.status(400).json({ message: "Email and password are required" });
+    }
 
+    const user = await User.findOne({ email });
     if (!user || !(await user.comparePassword(password))) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
@@ -78,7 +85,11 @@ const getUserById = async (req, res) => {
 
 const deleteUser = async (req, res) => {
   try {
-    const deletedUser = await User.findByIdAndDelete(req.params.id);
+    const userId = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: "Invalid user ID format" });
+    }
+    const deletedUser = await User.findByIdAndDelete(userId);
     if (!deletedUser) return res.status(404).json({ message: "User not found" });
     res.status(200).json({ message: "User deleted successfully" });
   } catch (error) {
@@ -86,7 +97,7 @@ const deleteUser = async (req, res) => {
     res.status(500).json({ message: "Error deleting user", error: error.message });
   }
 };
- 
+
 const getAllPatients = async (req, res) => {
   try {
     const patients = await User.find({ role: 'patient' }).select('-password -__v');
@@ -109,6 +120,35 @@ const deleteSelf = async (req, res) => {
   }
 };
 
+const getUserProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('-password -__v');
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.status(200).json(user);
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    res.status(500).json({ message: "Error fetching user profile", error: error.message });
+  }
+};
+
+const updateUserProfile = async (req, res) => {
+  try {
+    const { firstName, lastName, phoneNumber } = req.body;
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    user.firstName = firstName || user.firstName;
+    user.lastName = lastName || user.lastName;
+    user.phoneNumber = phoneNumber || user.phoneNumber;
+
+    await user.save();
+    res.status(200).json({ message: "Profile updated successfully", user: user.toJSON() });
+  } catch (error) {
+    console.error('Error updating user profile:', error);
+    res.status(500).json({ message: "Error updating user profile", error: error.message });
+  }
+};
+
 module.exports = {
   createUser,
   loginUser,
@@ -117,4 +157,6 @@ module.exports = {
   deleteUser,
   getAllPatients,
   deleteSelf,
+  getUserProfile,
+  updateUserProfile,
 };

@@ -7,7 +7,6 @@ const AdminDashboard = () => {
   const token = localStorage.getItem('token');
   const [doctors, setDoctors] = useState([]);
   const [appointments, setAppointments] = useState([]);
-  const [patients, setPatients] = useState([]);
   const [activeSection, setActiveSection] = useState('doctors');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -16,6 +15,7 @@ const AdminDashboard = () => {
   if (token) {
     try {
       const decodedToken = JSON.parse(atob(token.split('.')[1]));
+      console.log('Decoded Token:', decodedToken); // Debug token
       isAdmin = decodedToken.role === 'admin';
     } catch (err) {
       console.error('Error decoding token:', err);
@@ -31,16 +31,22 @@ const AdminDashboard = () => {
 
     const fetchData = async () => {
       try {
-        const [doctorsResponse, appointmentsResponse, patientsResponse] = await Promise.all([
-          axios.get('http://localhost:5000/doc/', { headers: { Authorization: `Bearer ${token}` } }),
-          axios.get('http://localhost:5000/appointment/all', { headers: { Authorization: `Bearer ${token}` } }),
-          axios.get('http://localhost:5000/user/patients', { headers: { Authorization: `Bearer ${token}` } }),
+        const config = { headers: { Authorization: `Bearer ${token.trim()}` } };
+        console.log('Request Config:', config); // Debug headers
+
+        const [doctorsResponse, appointmentsResponse] = await Promise.all([
+          axios.get('http://localhost:5000/doc/', config).catch(err => { throw err; }),
+          axios.get('http://localhost:5000/appointment/all', config).catch(err => { throw err; }),
         ]);
+
+        console.log('Doctors Response:', doctorsResponse.data); // Debug responses
+        console.log('Appointments Response:', appointmentsResponse.data);
+
         setDoctors(doctorsResponse.data);
         setAppointments(appointmentsResponse.data);
-        setPatients(patientsResponse.data);
         setLoading(false);
       } catch (err) {
+        console.error('Fetch Error:', err.response?.data || err.message); // Log detailed error
         setError(err.response?.data?.message || 'Error fetching dashboard data');
         setLoading(false);
       }
@@ -61,33 +67,34 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleDeleteUser = async (userId) => {
-    if (!window.confirm('Are you sure you want to delete this user?')) return;
-    try {
-      await axios.delete(`http://localhost:5000/user/${userId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setPatients(patients.filter(p => p._id !== userId));
-    } catch (err) {
-      setError('Error deleting user');
-    }
-  };
-
   if (!isAdmin) return null;
   if (loading) return <p className="text-center text-gray-500">Loading dashboard...</p>;
   if (error) return <p className="text-center text-red-500">{error}</p>;
 
   return (
-    <div className="flex min-h-screen bg-gray-100">
+    <div className="flex min-h-screen mt-16 bg-gray-100">
       <div className="flex-shrink-0 w-64 text-white bg-gray-800">
         <div className="p-6">
           <h2 className="text-2xl font-bold">Admin Dashboard</h2>
           <p className="mt-1 text-sm">Manage System</p>
         </div>
         <nav className="mt-6">
-          <button onClick={() => setActiveSection('doctors')} className={`w-full py-3 text-left px-6 transition-colors ${activeSection === 'doctors' ? 'bg-gray-900' : 'hover:bg-gray-700'}`}>Doctors</button>
-          <button onClick={() => setActiveSection('appointments')} className={`w-full py-3 text-left px-6 transition-colors ${activeSection === 'appointments' ? 'bg-gray-900' : 'hover:bg-gray-700'}`}>Appointments</button>
-          <button onClick={() => setActiveSection('patients')} className={`w-full py-3 text-left px-6 transition-colors ${activeSection === 'patients' ? 'bg-gray-900' : 'hover:bg-gray-700'}`}>Patients</button>
+          <button
+            onClick={() => setActiveSection('doctors')}
+            className={`w-full py-3 text-left px-6 transition-colors ${
+              activeSection === 'doctors' ? 'bg-gray-900' : 'hover:bg-gray-700'
+            }`}
+          >
+            Doctors
+          </button>
+          <button
+            onClick={() => setActiveSection('appointments')}
+            className={`w-full py-3 text-left px-6 transition-colors ${
+              activeSection === 'appointments' ? 'bg-gray-900' : 'hover:bg-gray-700'
+            }`}
+          >
+            Appointments
+          </button>
         </nav>
       </div>
       <div className="flex-1 p-6">
@@ -111,14 +118,28 @@ const AdminDashboard = () => {
                     <tbody>
                       {doctors.map((doctor) => (
                         <tr key={doctor._id} className="border-b">
-                          <td className="p-3">{doctor.userId.firstName} {doctor.userId.lastName}</td>
-                          <td className="p-3">{doctor.specialization}</td>
-                          <td className="p-3">{doctor.status}</td>
+                          <td className="p-3">
+                            {doctor.userId?.firstName
+                              ? `${doctor.userId.firstName} ${doctor.userId.lastName || ''}`
+                              : 'N/A'}
+                          </td>
+                          <td className="p-3">{doctor.specialization || 'N/A'}</td>
+                          <td className="p-3">{doctor.status || 'N/A'}</td>
                           <td className="flex p-3 space-x-2">
                             {doctor.status === 'pending' && (
                               <>
-                                <button onClick={() => handleDoctorStatus(doctor._id, 'active')} className="px-2 py-1 text-white bg-green-500 rounded hover:bg-green-600">Approve</button>
-                                <button onClick={() => handleDoctorStatus(doctor._id, 'inactive')} className="px-2 py-1 text-white bg-red-500 rounded hover:bg-red-600">Reject</button>
+                                <button
+                                  onClick={() => handleDoctorStatus(doctor._id, 'active')}
+                                  className="px-2 py-1 text-white bg-green-500 rounded hover:bg-green-600"
+                                >
+                                  Approve
+                                </button>
+                                <button
+                                  onClick={() => handleDoctorStatus(doctor._id, 'inactive')}
+                                  className="px-2 py-1 text-white bg-red-500 rounded hover:bg-red-600"
+                                >
+                                  Reject
+                                </button>
                               </>
                             )}
                           </td>
@@ -151,45 +172,22 @@ const AdminDashboard = () => {
                     <tbody>
                       {appointments.map((appointment) => (
                         <tr key={appointment._id} className="border-b">
-                          <td className="p-3">{appointment.patientId.firstName} {appointment.patientId.lastName}</td>
-                          <td className="p-3">{appointment.doctorId.firstName} {appointment.doctorId.lastName}</td>
-                          <td className="p-3">{new Date(appointment.dateTime).toLocaleString()}</td>
-                          <td className="p-3">{appointment.mode}</td>
-                          <td className="p-3">{appointment.paidStatus}</td>
-                          <td className="p-3">{appointment.status}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-          {activeSection === 'patients' && (
-            <div className="p-6 bg-white rounded-lg shadow-md">
-              <h3 className="mb-4 text-2xl font-semibold text-gray-800">All Patients</h3>
-              {patients.length === 0 ? (
-                <p className="text-gray-500">No patients found.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left">
-                    <thead>
-                      <tr className="bg-gray-200">
-                        <th className="p-3">Name</th>
-                        <th className="p-3">Email</th>
-                        <th className="p-3">Phone</th>
-                        <th className="p-3">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {patients.map((patient) => (
-                        <tr key={patient._id} className="border-b">
-                          <td className="p-3">{patient.firstName} {patient.lastName}</td>
-                          <td className="p-3">{patient.email}</td>
-                          <td className="p-3">{patient.phoneNumber || 'N/A'}</td>
                           <td className="p-3">
-                            <button onClick={() => handleDeleteUser(patient._id)} className="px-2 py-1 text-white bg-red-500 rounded hover:bg-red-600">Delete</button>
+                            {appointment.patientId?.firstName
+                              ? `${appointment.patientId.firstName} ${appointment.patientId.lastName || ''}`
+                              : 'N/A'}
                           </td>
+                          <td className="p-3">
+                            {appointment.doctorId?.firstName
+                              ? `${appointment.doctorId.firstName} ${appointment.doctorId.lastName || ''}`
+                              : 'N/A'}
+                          </td>
+                          <td className="p-3">
+                            {appointment.dateTime ? new Date(appointment.dateTime).toLocaleString() : 'N/A'}
+                          </td>
+                          <td className="p-3">{appointment.mode || 'N/A'}</td>
+                          <td className="p-3">{appointment.paidStatus || 'N/A'}</td>
+                          <td className="p-3">{appointment.status || 'N/A'}</td>
                         </tr>
                       ))}
                     </tbody>

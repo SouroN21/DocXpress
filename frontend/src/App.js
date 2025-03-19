@@ -1,7 +1,9 @@
 import './App.css';
+import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
+
+// Pages
 import HomePage from './pages/Home/home';
-import Header from './components/Header';
-import Footer from './components/Footer';
 import DoctorDashboard from './pages/Doctor/DoctorDashboard';
 import Login from './pages/Login/Login';
 import Register from './pages/Register/Register';
@@ -13,13 +15,66 @@ import PaymentSuccess from './pages/Appoinments/PaymentSuccess';
 import PaymentCancel from './pages/Appoinments/PaymentCancel';
 import PatientProfile from './pages/Patients/PatientProfile';
 import AdminDashboard from './pages/Admin/AdminDashboard';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+
+// Components
+import Header from './components/Header';
+import AdminHeader from './components/AdminHeader';
+import DoctorHeader from './components/DoctorHeader';
+import Footer from './components/Footer';
+
+// Layout Component
+const AppLayout = ({ children }) => {
+  const navigate = useNavigate();
+  const token = localStorage.getItem('token');
+  let role = '';
+
+  if (token) {
+    try {
+      const decodedToken = JSON.parse(atob(token.split('.')[1]));
+      role = decodedToken.role;
+    } catch (err) {
+      console.error('Error decoding token:', err);
+      localStorage.removeItem('token');
+      navigate('/login');
+    }
+  }
+
+  const renderHeader = () => {
+    if (!token) return <Header />;
+    switch (role) {
+      case 'admin':
+        return <AdminHeader />;
+      case 'doctor':
+        return <DoctorHeader />;
+      case 'patient':
+        return <Header />; // Use a PatientHeader if you create one later
+      default:
+        return <Header />;
+    }
+  };
+
+  // Redirect logic based on role (optional, headers already handle this)
+  useEffect(() => {
+    if (token && role) {
+      if (role === 'admin' && window.location.pathname === '/') navigate('/admin/dashboard');
+      else if (role === 'doctor' && window.location.pathname === '/') navigate('/doctor-dashboard');
+      else if (role === 'patient' && window.location.pathname === '/') navigate('/');
+    }
+  }, [token, role, navigate]);
+
+  return (
+    <div className="App">
+      {renderHeader()}
+      <main className="pt-16">{children}</main>
+      <Footer />
+    </div>
+  );
+};
 
 function App() {
   return (
     <Router>
-      <div className="App">
-        <Header />
+      <AppLayout>
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/doctor-dashboard" element={<DoctorDashboard />} />
@@ -34,8 +89,7 @@ function App() {
           <Route path="/profile" element={<PatientProfile />} />
           <Route path="/admin-dashboard" element={<AdminDashboard />} />
         </Routes>
-        <Footer />
-      </div>
+      </AppLayout>
     </Router>
   );
 }
