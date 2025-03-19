@@ -19,7 +19,7 @@ mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopol
   .catch(err => console.error("MongoDB Connection Error:", err));
 
 app.use("/users", userRoutes);
-app.use("/appointments", appointmentRoutes);
+app.use("/appointment", appointmentRoutes);
 app.use("/doc", doctorRoutes);
 
 app.listen(5000, () => console.log("Server running on port 5000"));
