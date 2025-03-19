@@ -1,20 +1,39 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { loadStripe } from '@stripe/stripe-js';
 
-const stripePromise = loadStripe('pk_test_51R4696HMKbL3MyQep9UdgfrZYeL5DJnvgGOmXYRyWuga5HDPMUsDsCivnIlHH9j9nVjOs14fnefYnrIl7BULx06600Fczm0mLr'); // Replace with your Stripe publishable key
+const stripePromise = loadStripe('pk_test_51R4696HMKbL3MyQep9UdgfrZYeL5DJnvgGOmXYRyWuga5HDPMUsDsCivnIlHH9j9nVjOs14fnefYnrIl7BULx06600Fczm0mLr');
 
 const AppointmentBooking = () => {
   const { doctorId } = useParams();
-  const [formData, setFormData] = useState({
-    dateTime: '',
-    mode: 'In-Person',
-  });
+  const [formData, setFormData] = useState({ dateTime: '', mode: 'In-Person' });
+  const [doctor, setDoctor] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
   const token = localStorage.getItem('token');
+
+  useEffect(() => {
+    if (!token) {
+      setError('Please log in to book an appointment.');
+      setTimeout(() => navigate('/login'), 2000);
+      return;
+    }
+
+    const fetchDoctor = async () => {
+      try {
+        const response = await axios.get(`http://localhost:5000/doc/${doctorId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setDoctor(response.data);
+      } catch (err) {
+        setError('Error fetching doctor details');
+      }
+    };
+
+    fetchDoctor();
+  }, [doctorId, token, navigate]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -23,6 +42,7 @@ const AppointmentBooking = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!token) return;
     setLoading(true);
     setError('');
 
@@ -32,70 +52,88 @@ const AppointmentBooking = () => {
 
       const response = await axios.post(
         'http://localhost:5000/appointment/add',
-        {
-          patientId,
-          doctorId,
-          dateTime: formData.dateTime,
-          mode: formData.mode,
-        },
+        { patientId, doctorId, dateTime: formData.dateTime, mode: formData.mode },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
       const stripe = await stripePromise;
       const { stripeSessionId } = response.data;
-
-      const { error: stripeError } = await stripe.redirectToCheckout({
-        sessionId: stripeSessionId,
-      });
+      const { error: stripeError } = await stripe.redirectToCheckout({ sessionId: stripeSessionId });
 
       if (stripeError) {
         setError(stripeError.message);
-        setLoading(false);
       }
     } catch (err) {
       setError(err.response?.data?.message || 'Error booking appointment');
+    } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="container max-w-2xl px-4 py-6 mx-auto bg-white rounded-lg shadow-lg">
-      <h1 className="mb-6 text-3xl font-bold text-center text-gray-800">Book Appointment</h1>
-      {error && <p className="p-2 mb-4 text-center text-white bg-red-500 rounded-md">{error}</p>}
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Date & Time</label>
-          <input
-            type="datetime-local"
-            name="dateTime"
-            value={formData.dateTime}
-            onChange={handleChange}
-            className="w-full px-4 py-2 mt-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            required
-          />
+    <div className="flex items-center justify-center min-h-screen px-4 py-12 bg-gray-100 sm:px-6 lg:px-8">
+      <div className="w-full max-w-3xl p-8 space-y-8 bg-white shadow-lg rounded-xl">
+        <div className="text-center">
+          <h1 className="text-4xl font-extrabold text-gray-900">Book an Appointment</h1>
+          {doctor && (
+            <p className="mt-2 text-lg text-gray-600">
+              with Dr. {doctor.userId.firstName} {doctor.userId.lastName} ({doctor.specialization})
+            </p>
+          )}
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Mode</label>
-          <select
-            name="mode"
-            value={formData.mode}
-            onChange={handleChange}
-            className="w-full px-4 py-2 mt-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+
+        {error && (
+          <div className="p-4 text-red-700 bg-red-100 border-l-4 border-red-500 rounded" role="alert">
+            <p>{error}</p>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label htmlFor="dateTime" className="block text-sm font-medium text-gray-700">
+              Select Date & Time
+            </label>
+            <input
+              type="datetime-local"
+              id="dateTime"
+              name="dateTime"
+              value={formData.dateTime}
+              onChange={handleChange}
+              min={new Date().toISOString().slice(0, 16)}
+              className="block w-full px-4 py-3 mt-1 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              required
+            />
+          </div>
+
+          <div>
+            <label htmlFor="mode" className="block text-sm font-medium text-gray-700">
+              Appointment Mode
+            </label>
+            <select
+              id="mode"
+              name="mode"
+              value={formData.mode}
+              onChange={handleChange}
+              className="block w-full px-4 py-3 mt-1 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            >
+              <option value="In-Person">In-Person</option>
+              <option value="Online">Online</option>
+            </select>
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading || !doctor}
+            className={`w-full py-3 px-4 rounded-md text-white font-semibold transition-colors duration-200 ${
+              loading || !doctor
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500'
+            }`}
           >
-            <option value="In-Person">In-Person</option>
-            <option value="Online">Online</option>
-          </select>
-        </div>
-        <button
-          type="submit"
-          className={`w-full py-2 text-white rounded-md ${
-            loading ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600'
-          }`}
-          disabled={loading}
-        >
-          {loading ? 'Processing...' : 'Proceed to Payment'}
-        </button>
-      </form>
+            {loading ? 'Processing...' : 'Proceed to Payment'}
+          </button>
+        </form>
+      </div>
     </div>
   );
 };

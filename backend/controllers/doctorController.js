@@ -2,6 +2,7 @@ const Doctor = require('../models/doctorModel');
 const User = require('../models/userModel');
 const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
+const mongoose = require('mongoose');
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -22,22 +23,11 @@ const upload = multer({
   },
 });
 
-exports.createDoctorProfile = async (req, res) => {
+const createDoctorProfile = async (req, res) => {
   try {
-    console.log('Raw req.body:', JSON.stringify(req.body, null, 2));
-    console.log('req.file:', req.file ? req.file : 'No file');
-
-    const {
-      specialization,
-      licenseNumber,
-      yearsOfExperience,
-      clinicAddress,
-      availability,
-      consultationFee,
-      qualifications,
-    } = req.body;
-
+    const { specialization, licenseNumber, yearsOfExperience, clinicAddress, availability, consultationFee, qualifications } = req.body;
     const userId = req.user.id;
+
     const user = await User.findById(userId);
     if (!user || user.role !== 'doctor') {
       return res.status(403).json({ message: 'Only doctors can create a profile' });
@@ -63,23 +53,8 @@ exports.createDoctorProfile = async (req, res) => {
       imageUrl = result.secure_url;
     }
 
-    let parsedAvailability;
-    if (typeof availability === 'string') {
-      parsedAvailability = JSON.parse(availability);
-    } else if (Array.isArray(availability)) {
-      parsedAvailability = availability;
-    } else {
-      return res.status(400).json({ message: 'Availability must be a JSON string or array' });
-    }
-
-    let parsedQualifications;
-    if (typeof qualifications === 'string') {
-      parsedQualifications = JSON.parse(qualifications);
-    } else if (Array.isArray(qualifications)) {
-      parsedQualifications = qualifications;
-    } else {
-      return res.status(400).json({ message: 'Qualifications must be a JSON string or array' });
-    }
+    let parsedAvailability = typeof availability === 'string' ? JSON.parse(availability) : availability;
+    let parsedQualifications = typeof qualifications === 'string' ? JSON.parse(qualifications) : qualifications;
 
     const doctor = new Doctor({
       userId,
@@ -102,7 +77,7 @@ exports.createDoctorProfile = async (req, res) => {
   }
 };
 
-exports.getAllDoctors = async (req, res) => {
+const getAllDoctors = async (req, res) => {
   try {
     const doctors = await Doctor.find()
       .populate('userId', 'firstName lastName email phoneNumber')
@@ -117,29 +92,27 @@ exports.getAllDoctors = async (req, res) => {
   }
 };
 
-exports.getDoctorById = async (req, res) => {
+const getDoctorById = async (req, res) => {
   try {
-    const doctor = await Doctor.findById(req.params.id).populate(
-      'userId',
-      'firstName lastName email phoneNumber'
-    );
+    const doctorId = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(doctorId)) {
+      return res.status(400).json({ message: "Invalid doctor ID format" });
+    }
+    const doctor = await Doctor.findById(doctorId).populate('userId', 'firstName lastName email phoneNumber');
     if (!doctor) {
-      return res.status(404).json({ message: 'Doctor not found' });
+      return res.status(404).json({ message: "Doctor not found" });
     }
     res.status(200).json(doctor);
   } catch (error) {
     console.error('Error fetching doctor:', error);
-    res.status(500).json({ message: 'Error fetching doctor', error: error.message });
+    res.status(500).json({ message: "Error fetching doctor", error: error.message });
   }
 };
 
-exports.getDoctorByUserId = async (req, res) => {
+const getDoctorByUserId = async (req, res) => {
   try {
-    const userId = req.user.id; // Use authenticated user ID, not URL param
-    const doctor = await Doctor.findOne({ userId }).populate(
-      'userId',
-      'firstName lastName email phoneNumber'
-    );
+    const userId = req.user.id;
+    const doctor = await Doctor.findOne({ userId }).populate('userId', 'firstName lastName email phoneNumber');
     if (!doctor) {
       return res.status(404).json({ message: 'Doctor profile not found for this user' });
     }
@@ -150,9 +123,72 @@ exports.getDoctorByUserId = async (req, res) => {
   }
 };
 
+const updateDoctorProfile = async (req, res) => {
+  try {
+    const { specialization, licenseNumber, yearsOfExperience, clinicAddress, availability, consultationFee, qualifications } = req.body;
+    const userId = req.user.id;
+
+    const doctor = await Doctor.findOne({ userId });
+    if (!doctor) {
+      return res.status(404).json({ message: 'Doctor profile not found' });
+    }
+
+    let imageUrl = doctor.image;
+    if (req.file) {
+      const result = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { folder: 'doctor_profiles' },
+          (error, result) => {
+            if (error) return reject(error);
+            resolve(result);
+          }
+        );
+        stream.end(req.file.buffer);
+      });
+      imageUrl = result.secure_url;
+    }
+
+    let parsedAvailability = typeof availability === 'string' ? JSON.parse(availability) : availability;
+    let parsedQualifications = typeof qualifications === 'string' ? JSON.parse(qualifications) : qualifications;
+
+    doctor.specialization = specialization || doctor.specialization;
+    doctor.licenseNumber = licenseNumber || doctor.licenseNumber;
+    doctor.yearsOfExperience = yearsOfExperience ? Number(yearsOfExperience) : doctor.yearsOfExperience;
+    doctor.clinicAddress = clinicAddress !== undefined ? clinicAddress : doctor.clinicAddress;
+    doctor.availability = parsedAvailability || doctor.availability;
+    doctor.consultationFee = consultationFee ? Number(consultationFee) : doctor.consultationFee;
+    doctor.qualifications = parsedQualifications || doctor.qualifications;
+    doctor.image = imageUrl;
+
+    await doctor.save();
+    res.status(200).json({ message: 'Doctor profile updated successfully', doctor });
+  } catch (error) {
+    console.error('Error updating doctor profile:', error);
+    res.status(500).json({ message: 'Error updating doctor profile', error: error.message });
+  }
+};
+
+const updateDoctorStatus = async (req, res) => {
+  try {
+    const { doctorId, status } = req.body;
+    const doctor = await Doctor.findById(doctorId);
+    if (!doctor) {
+      return res.status(404).json({ message: 'Doctor not found' });
+    }
+    doctor.status = status;
+    await doctor.save();
+    res.status(200).json({ message: 'Doctor status updated', doctor });
+  } catch (error) {
+    console.error('Error updating doctor status:', error);
+    res.status(500).json({ message: 'Error updating status', error: error.message });
+  }
+};
+
 module.exports = {
-  createDoctorProfile: [upload.single('image'), exports.createDoctorProfile],
-  getAllDoctors: exports.getAllDoctors,
-  getDoctorById: exports.getDoctorById,
-  getDoctorByUserId: exports.getDoctorByUserId,
+  createDoctorProfile: [upload.single('image'), createDoctorProfile],
+  getAllDoctors,
+  getDoctorById,
+  getDoctorByUserId,
+  updateDoctorProfile: [upload.single('image'), updateDoctorProfile],
+  updateDoctorStatus,
 };

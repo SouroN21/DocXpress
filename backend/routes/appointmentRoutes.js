@@ -1,12 +1,15 @@
 const express = require("express");
-const router = express.Router();
-const appointmentController = require("../controllers/appointmentController");
+const { createAppointment, updateAppointmentPayment, updateAppointmentStatus, getAllAppointments, getPatientAppointments, getDoctorAppointments, deleteAppointment } = require("../controllers/appointmentController");
+const { authenticate, authorize } = require("../middleware/authMiddleware");
 
-router.post("/add", appointmentController.createAppointment);
-router.get("/all", appointmentController.getAllAppointments);
-router.get("/patient/:patientId", appointmentController.getPatientAppointments);
-router.get("/doctor/:doctorId", appointmentController.getDoctorAppointments);
-router.delete("/delete/:appointmentId", appointmentController.deleteAppointment);
-router.post("/payment-success", appointmentController.updateAppointmentPayment); // New route
+const router = express.Router();
+
+router.post("/add", authenticate, authorize(['patient']), createAppointment);
+router.get("/all", authenticate, getAllAppointments);
+router.get("/patient/:patientId", authenticate, getPatientAppointments);
+router.get("/doctor/:doctorId", authenticate, getDoctorAppointments);
+router.delete("/delete/:appointmentId", authenticate, deleteAppointment);
+router.post("/payment-success", updateAppointmentPayment);
+router.put("/status", authenticate, authorize(['doctor']), updateAppointmentStatus); // New route
 
 module.exports = router;

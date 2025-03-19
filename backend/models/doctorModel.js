@@ -31,7 +31,7 @@ const doctorSchema = new mongoose.Schema({
     enum: ['active', 'inactive', 'pending'],
     default: 'pending',
   },
-  image: { type: String, required: false }, // Added for Cloudinary URL
+  image: { type: String, required: false },
   createdAt: { type: Date, default: Date.now },
 });
 

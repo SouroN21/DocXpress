@@ -1,18 +1,56 @@
-const Appointment = require("../models/appointmentsModel"); // Corrected import
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY); // Add your Stripe secret key in .env
+const Appointment = require("../models/appointmentsModel"); // Fixed typo
+const Doctor = require("../models/doctorModel");
+const User = require("../models/userModel");
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const nodemailer = require('nodemailer');
 
-// Create a new appointment with Stripe payment
-exports.createAppointment = async (req, res) => {
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
+
+const sendAppointmentEmail = async (patient, doctor, appointment) => {
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: [patient.email, doctor.userId.email],
+    subject: 'New Appointment Scheduled',
+    text: `An appointment has been scheduled:\n
+      Patient: ${patient.firstName} ${patient.lastName}\n
+      Doctor: ${doctor.userId.firstName} ${doctor.userId.lastName}\n
+      Date: ${new Date(appointment.dateTime).toLocaleString()}\n
+      Mode: ${appointment.mode}\n
+      Status: ${appointment.status}`,
+  };
+
+  await transporter.sendMail(mailOptions);
+};
+
+const createAppointment = async (req, res) => {
   try {
     const { patientId, doctorId, dateTime, mode } = req.body;
+
+    console.log('Received doctorId:', doctorId); // Debug log
 
     if (!patientId || !doctorId || !dateTime || !mode) {
       return res.status(400).json({ message: "All required fields must be provided" });
     }
 
+    const doctor = await Doctor.findById(doctorId).populate('userId');
+    if (!doctor) {
+      return res.status(404).json({ message: "Doctor not found" });
+    }
+
+    const patient = await User.findById(patientId);
+    if (!patient) {
+      return res.status(404).json({ message: "Patient not found" });
+    }
+
     const appointment = new Appointment({
       patientId,
-      doctorId,
+      doctorId: doctor.userId, // Store the User _id
       dateTime,
       mode,
       paidStatus: "Pending",
@@ -21,7 +59,6 @@ exports.createAppointment = async (req, res) => {
 
     await appointment.save();
 
-    // Create Stripe Checkout Session
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [
@@ -29,10 +66,10 @@ exports.createAppointment = async (req, res) => {
           price_data: {
             currency: 'usd',
             product_data: {
-              name: `Appointment with Doctor (ID: ${doctorId})`,
+              name: `Appointment with Dr. ${doctor.userId.lastName}`,
               description: `Mode: ${mode}, Date: ${new Date(dateTime).toLocaleString()}`,
             },
-            unit_amount: 5000, // Example: $50.00 (adjust based on doctor’s consultationFee)
+            unit_amount: doctor.consultationFee * 100,
           },
           quantity: 1,
         },
@@ -42,6 +79,8 @@ exports.createAppointment = async (req, res) => {
       cancel_url: `http://localhost:3000/payment-cancel?appointmentId=${appointment._id}`,
       metadata: { appointmentId: appointment._id.toString() },
     });
+
+    await sendAppointmentEmail(patient, doctor, appointment);
 
     res.status(201).json({ 
       message: "Appointment created, proceed to payment", 
@@ -54,8 +93,7 @@ exports.createAppointment = async (req, res) => {
   }
 };
 
-// Update appointment status after payment
-exports.updateAppointmentPayment = async (req, res) => {
+const updateAppointmentPayment = async (req, res) => {
   try {
     const { appointmentId } = req.body;
     const appointment = await Appointment.findById(appointmentId);
@@ -69,41 +107,72 @@ exports.updateAppointmentPayment = async (req, res) => {
 
     res.status(200).json({ message: "Payment confirmed", appointment });
   } catch (error) {
+    console.error('Error updating payment status:', error);
     res.status(500).json({ message: "Error updating payment status", error: error.message });
   }
 };
 
-// Existing functions...
-exports.getAllAppointments = async (req, res) => {
+const updateAppointmentStatus = async (req, res) => {
   try {
-    const appointments = await Appointment.find();
-    res.status(200).json(appointments);
+    const { appointmentId, status } = req.body;
+    const userId = req.user.id;
+
+    const appointment = await Appointment.findById(appointmentId);
+    if (!appointment) {
+      return res.status(404).json({ message: "Appointment not found" });
+    }
+
+    if (appointment.doctorId.toString() !== userId) {
+      return res.status(403).json({ message: "Only the assigned doctor can update this appointment" });
+    }
+
+    appointment.status = status;
+    await appointment.save();
+
+    res.status(200).json({ message: "Appointment status updated", appointment });
   } catch (error) {
-    res.status(500).json({ message: "Error fetching appointments", error });
+    console.error('Error updating appointment status:', error);
+    res.status(500).json({ message: "Error updating appointment status", error: error.message });
   }
 };
 
-exports.getPatientAppointments = async (req, res) => {
+const getAllAppointments = async (req, res) => {
+  try {
+    const appointments = await Appointment.find()
+      .populate('patientId', 'firstName lastName')
+      .populate('doctorId', 'firstName lastName');
+    res.status(200).json(appointments);
+  } catch (error) {
+    console.error('Error fetching appointments:', error);
+    res.status(500).json({ message: "Error fetching appointments", error: error.message });
+  }
+};
+
+const getPatientAppointments = async (req, res) => {
   try {
     const { patientId } = req.params;
-    const appointments = await Appointment.find({ patientId });
+    const appointments = await Appointment.find({ patientId })
+      .populate('doctorId', 'firstName lastName');
     res.status(200).json(appointments);
   } catch (error) {
-    res.status(500).json({ message: "Error fetching appointments", error });
+    console.error('Error fetching patient appointments:', error);
+    res.status(500).json({ message: "Error fetching appointments", error: error.message });
   }
 };
 
-exports.getDoctorAppointments = async (req, res) => {
+const getDoctorAppointments = async (req, res) => {
   try {
     const { doctorId } = req.params;
-    const appointments = await Appointment.find({ doctorId });
+    const appointments = await Appointment.find({ doctorId })
+      .populate('patientId', 'firstName lastName');
     res.status(200).json(appointments);
   } catch (error) {
-    res.status(500).json({ message: "Error fetching appointments", error });
+    console.error('Error fetching doctor appointments:', error);
+    res.status(500).json({ message: "Error fetching appointments", error: error.message });
   }
 };
 
-exports.deleteAppointment = async (req, res) => {
+const deleteAppointment = async (req, res) => {
   try {
     const { appointmentId } = req.params;
     const deletedAppointment = await Appointment.findByIdAndDelete(appointmentId);
@@ -112,15 +181,17 @@ exports.deleteAppointment = async (req, res) => {
     }
     res.status(200).json({ message: "Appointment deleted successfully" });
   } catch (error) {
-    res.status(500).json({ message: "Error deleting appointment", error });
+    console.error('Error deleting appointment:', error);
+    res.status(500).json({ message: "Error deleting appointment", error: error.message });
   }
 };
 
 module.exports = {
-  createAppointment: exports.createAppointment,
-  getAllAppointments: exports.getAllAppointments,
-  getPatientAppointments: exports.getPatientAppointments,
-  getDoctorAppointments: exports.getDoctorAppointments,
-  deleteAppointment: exports.deleteAppointment,
-  updateAppointmentPayment: exports.updateAppointmentPayment,
+  createAppointment,
+  updateAppointmentPayment,
+  updateAppointmentStatus,
+  getAllAppointments,
+  getPatientAppointments,
+  getDoctorAppointments,
+  deleteAppointment,
 };

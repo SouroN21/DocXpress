@@ -28,6 +28,19 @@ const Login = () => {
     return true;
   };
 
+  const checkDoctorProfile = async (userId, token) => {
+    try {
+      const response = await axios.get(`http://localhost:5000/doc/by-user/${userId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return response.data !== null; // Returns true if doctor profile exists
+    } catch (err) {
+      // If 404 (not found), assume no profile exists
+      if (err.response?.status === 404) return false;
+      throw err; // Re-throw other errors
+    }
+  };
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
@@ -39,29 +52,28 @@ const Login = () => {
     }
 
     try {
-      const response = await axios.post('http://localhost:5000/users/login', {
-        email: formData.email,
-        password: formData.password,
-      });
-
+      const response = await axios.post('http://localhost:5000/user/login', formData);
       const { token } = response.data;
       localStorage.setItem('token', token);
 
-      let userRole;
-      try {
-        const decodedToken = JSON.parse(atob(token.split('.')[1]));
-        userRole = decodedToken.role;
-      } catch (decodeError) {
-        console.error('Error decoding token:', decodeError);
-        userRole = 'patient'; // Fallback role
-      }
+      const decodedToken = JSON.parse(atob(token.split('.')[1]));
+      const userRole = decodedToken.role;
+      const userId = decodedToken.id;
 
-      console.log('Login successful for:', formData.email, 'Role:', userRole);
       setLoading(false);
 
       switch (userRole) {
         case 'doctor':
-          navigate('/doctor-dashboard');
+          try {
+            const hasDoctorProfile = await checkDoctorProfile(userId, token);
+            if (hasDoctorProfile) {
+              navigate('/doctor-dashboard');
+            } else {
+              navigate('/adddoctor');
+            }
+          } catch (err) {
+            setError('Error checking doctor profile. Please try again.');
+          }
           break;
         case 'patient':
           navigate('/');
@@ -73,7 +85,6 @@ const Login = () => {
           navigate('/');
       }
     } catch (err) {
-      console.error('Error during login:', err);
       setLoading(false);
       setError(err.response?.data?.message || 'Login failed. Please try again.');
     }
@@ -82,64 +93,68 @@ const Login = () => {
   const successMessage = location.state?.message;
 
   return (
-    <div className="container max-w-md px-4 py-6 mx-auto bg-white rounded-lg shadow-lg">
-      <h1 className="mb-6 text-3xl font-bold text-center text-gray-800">Login</h1>
-      {successMessage && (
-        <p className="p-2 mb-4 text-center text-white bg-green-500 rounded-md">{successMessage}</p>
-      )}
-      {error && (
-        <p className="p-2 mb-4 text-center text-white bg-red-500 rounded-md">{error}</p>
-      )}
-      <form onSubmit={handleLogin} className="space-y-4">
-        <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-            Email <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="email"
-            id="email"
-            name="email"
-            className="w-full px-4 py-2 mt-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Enter your email"
-            value={formData.email}
-            onChange={handleChange}
-            required
-          />
-        </div>
-        <div>
-          <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-            Password <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="password"
-            id="password"
-            name="password"
-            className="w-full px-4 py-2 mt-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Enter your password"
-            value={formData.password}
-            onChange={handleChange}
-            required
-          />
-        </div>
-        <button
-          type="submit"
-          className={`w-full py-2 text-white rounded-md transition-colors ${
-            loading ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600'
-          }`}
-          disabled={loading}
-        >
-          {loading ? 'Logging in...' : 'Login'}
-        </button>
-      </form>
-      <p className="mt-4 text-center text-gray-600">
-        Don’t have an account?{' '}
-        <span
-          className="text-blue-500 cursor-pointer hover:underline"
-          onClick={() => navigate('/register')}
-        >
-          Register here
-        </span>
-      </p>
+    <div className="flex items-center justify-center min-h-screen px-4 py-12 bg-gray-100 sm:px-6 lg:px-8">
+      <div className="w-full max-w-md p-8 space-y-6 bg-white shadow-lg rounded-xl">
+        <h1 className="text-3xl font-extrabold text-center text-gray-900">Login</h1>
+        {successMessage && (
+          <p className="p-3 text-green-700 bg-green-100 border-l-4 border-green-500 rounded">
+            {successMessage}
+          </p>
+        )}
+        {error && (
+          <p className="p-3 text-red-700 bg-red-100 border-l-4 border-red-500 rounded">{error}</p>
+        )}
+        <form onSubmit={handleLogin} className="space-y-6">
+          <div>
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+              Email <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="email"
+              id="email"
+              name="email"
+              className="block w-full px-4 py-3 mt-1 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              placeholder="Enter your email"
+              value={formData.email}
+              onChange={handleChange}
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+              Password <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="password"
+              id="password"
+              name="password"
+              className="block w-full px-4 py-3 mt-1 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              placeholder="Enter your password"
+              value={formData.password}
+              onChange={handleChange}
+              required
+            />
+          </div>
+          <button
+            type="submit"
+            className={`w-full py-3 px-4 rounded-md text-white font-semibold transition-colors duration-200 ${
+              loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500'
+            }`}
+            disabled={loading}
+          >
+            {loading ? 'Logging in...' : 'Login'}
+          </button>
+        </form>
+        <p className="mt-2 text-center text-gray-600">
+          Don’t have an account?{' '}
+          <span
+            className="text-indigo-600 cursor-pointer hover:underline"
+            onClick={() => navigate('/register')}
+          >
+            Register here
+          </span>
+        </p>
+      </div>
     </div>
   );
 };

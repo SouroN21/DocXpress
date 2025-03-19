@@ -10,7 +10,7 @@ const Doctors = () => {
   useEffect(() => {
     const fetchDoctors = async () => {
       try {
-        const response = await axios.get('http://localhost:5000/users/doctors');
+        const response = await axios.get('http://localhost:5000/user/doctors');
         setDoctors(response.data);
         setLoading(false);
       } catch (err) {
