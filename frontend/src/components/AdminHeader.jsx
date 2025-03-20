@@ -29,6 +29,7 @@ const AdminHeader = () => {
 
   const navItems = [
     { name: "Home", path: "/admin-dashboard" },
+    { name: "Contact", path: "/contact" },
     { name: "About", path: "/about" },
     { name: "Logout", path: "/login", onClick: handleLogout },
   ];

@@ -29,6 +29,7 @@ const DoctorHeader = () => {
 
   const navItems = [
     { name: "Home", path: "/doctor-dashboard" },
+    { name: "Contact", path: "/contact" },
     { name: "About", path: "/about" },
     { name: "Logout", path: "/login", onClick: handleLogout },
   ];

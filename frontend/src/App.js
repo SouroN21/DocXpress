@@ -22,6 +22,9 @@ import AdminHeader from './components/AdminHeader';
 import DoctorHeader from './components/DoctorHeader';
 import Footer from './components/Footer';
 
+import Contact from './pages/StaticPages/Contact';
+import About from './pages/StaticPages/About';
+
 // Layout Component
 const AppLayout = ({ children }) => {
   const navigate = useNavigate();
@@ -88,6 +91,8 @@ function App() {
           <Route path="/payment-cancel" element={<PaymentCancel />} />
           <Route path="/profile" element={<PatientProfile />} />
           <Route path="/admin-dashboard" element={<AdminDashboard />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/contact" element={<Contact />} />
         </Routes>
       </AppLayout>
     </Router>

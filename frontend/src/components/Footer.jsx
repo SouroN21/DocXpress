@@ -3,17 +3,43 @@ import { Link } from 'react-router-dom';
 
 const Footer = () => {
   return (
-    <footer className="py-6 mt-8 text-white bg-blue-500">
-      <div className="container mx-auto text-center">
-        <div className="flex justify-center mb-4 space-x-6">
-          <Link to="/" className="hover:text-gray-300">Home</Link>
-          <Link to="/appointments" className="hover:text-gray-300">Appointments</Link>
-          <Link to="/doctors" className="hover:text-gray-300">Doctors</Link>
-          <Link to="/about" className="hover:text-gray-300">About</Link>
-          <Link to="/login" className="hover:text-gray-300">Login</Link>
+    <footer className="py-8 mt-16 text-white bg-blue-600">
+      <div className="container px-4 mx-auto">
+        {/* Top Links */}
+        <div className="grid grid-cols-1 gap-8 mb-6 text-center md:grid-cols-3 md:text-left">
+          {/* About */}
+          <div>
+            <h3 className="mb-3 text-lg font-semibold">About Us</h3>
+            <p className="text-sm">
+              DocXpress is your trusted healthcare partner, connecting patients and doctors with ease.
+            </p>
+          </div>
+
+          {/* Quick Links */}
+          <div>
+            <h3 className="mb-3 text-lg font-semibold">Quick Links</h3>
+            <ul className="space-y-2">
+              <li><Link to="/" className="hover:underline">Home</Link></li>
+              <li><Link to="/doctors" className="hover:underline">Find Doctors</Link></li>
+              <li><Link to="/appointments" className="hover:underline">Appointments</Link></li>
+              <li><Link to="/about" className="hover:underline">About Us</Link></li>
+              <li><Link to="/contact" className="hover:underline">Contact</Link></li>
+            </ul>
+          </div>
+
+          {/* Contact Info */}
+          <div>
+            <h3 className="mb-3 text-lg font-semibold">Contact</h3>
+            <p className="text-sm">Email: support@docxpress.com</p>
+            <p className="text-sm">Phone: +94 71 234 5678</p>
+            <p className="text-sm">Location: Colombo, Sri Lanka</p>
+          </div>
         </div>
 
-        <p className="text-sm">© 2025 MedBook. All rights reserved.</p>
+        {/* Divider */}
+        <div className="pt-4 text-sm text-center border-t border-blue-400">
+          © 2025 <span className="font-semibold">Doc<span className="text-red-400">X</span>press</span>. All rights reserved.
+        </div>
       </div>
     </footer>
   );
