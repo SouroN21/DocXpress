@@ -111,25 +111,34 @@ const updateAppointmentPayment = async (req, res) => {
     res.status(500).json({ message: "Error updating payment status", error: error.message });
   }
 };
-
 const updateAppointmentStatus = async (req, res) => {
   try {
     const { appointmentId, status } = req.body;
     const userId = req.user.id;
+
+    if (!appointmentId || !status) {
+      return res.status(400).json({ message: "Appointment ID and status are required" });
+    }
+
+    const validStatuses = ['Pending', 'Confirmed', 'Completed', 'Canceled'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ message: "Invalid status value" });
+    }
 
     const appointment = await Appointment.findById(appointmentId);
     if (!appointment) {
       return res.status(404).json({ message: "Appointment not found" });
     }
 
+    // Assuming doctorId is the User _id from the appointment
     if (appointment.doctorId.toString() !== userId) {
       return res.status(403).json({ message: "Only the assigned doctor can update this appointment" });
     }
 
     appointment.status = status;
-    await appointment.save();
+    const updatedAppointment = await appointment.save();
 
-    res.status(200).json({ message: "Appointment status updated", appointment });
+    res.status(200).json({ message: "Appointment status updated", appointment: updatedAppointment });
   } catch (error) {
     console.error('Error updating appointment status:', error);
     res.status(500).json({ message: "Error updating appointment status", error: error.message });

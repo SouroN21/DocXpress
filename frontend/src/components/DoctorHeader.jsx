@@ -31,7 +31,6 @@ const DoctorHeader = () => {
     { name: "Home", path: "/doctor-dashboard" },
     { name: "Contact", path: "/contact" },
     { name: "About", path: "/about" },
-    { name: "Logout", path: "/login", onClick: handleLogout },
   ];
 
   if (!token || !isDoctor) {
@@ -45,17 +44,22 @@ const DoctorHeader = () => {
         <Link to="/" className="text-2xl font-bold tracking-tight">
           Doc<span className="text-red-500">X</span>press
         </Link>
-        <nav className="items-center hidden space-x-6 md:flex">
+        <nav className="hidden space-x-6 md:flex">
           {navItems.map((item) => (
             <Link
               key={item.name}
               to={item.path}
-              onClick={item.onClick || null}
               className="px-3 py-1 text-base font-medium transition-colors duration-200 rounded-md hover:text-gray-200 hover:bg-blue-700 active:bg-blue-800"
             >
               {item.name}
             </Link>
           ))}
+          <button
+            onClick={handleLogout}
+            className="px-4 py-2 font-medium text-white transition-all bg-red-600 rounded-md shadow hover:bg-red-700 active:bg-red-800"
+          >
+            Logout
+          </button>
         </nav>
         <div className="md:hidden">
           <button
@@ -77,12 +81,18 @@ const DoctorHeader = () => {
             <Link
               key={item.name}
               to={item.path}
-              onClick={item.onClick || (() => setIsMenuOpen(false))}
+              onClick={() => setIsMenuOpen(false)}
               className="px-3 py-2 text-base font-medium text-white transition-colors duration-200 rounded-md hover:text-gray-200 hover:bg-blue-800 active:bg-blue-900"
             >
               {item.name}
             </Link>
           ))}
+          <button
+            onClick={handleLogout}
+            className="w-full px-4 py-2 font-medium text-white transition-all bg-red-600 rounded-md shadow hover:bg-red-700 active:bg-red-800"
+          >
+            Logout
+          </button>
         </div>
       </nav>
     </header>

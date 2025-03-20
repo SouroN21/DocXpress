@@ -15,6 +15,7 @@ import PaymentSuccess from './pages/Appoinments/PaymentSuccess';
 import PaymentCancel from './pages/Appoinments/PaymentCancel';
 import PatientProfile from './pages/Patients/PatientProfile';
 import AdminDashboard from './pages/Admin/AdminDashboard';
+import Reminders from './pages/Patients/Reminders';
 
 // Components
 import Header from './components/Header';
@@ -93,6 +94,7 @@ function App() {
           <Route path="/admin-dashboard" element={<AdminDashboard />} />
           <Route path="/about" element={<About />} />
           <Route path="/contact" element={<Contact />} />
+          <Route path="/reminder" element={<Reminders />} />
         </Routes>
       </AppLayout>
     </Router>
