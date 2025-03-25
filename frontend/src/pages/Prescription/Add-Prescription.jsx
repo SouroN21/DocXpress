@@ -1,4 +1,3 @@
-// components/AddPrescription.js
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -9,20 +8,17 @@ const AddPrescription = () => {
   const appointment = state?.appointment;
   const patient = appointment?.patientId;
 
-  const [prescription, setPrescription] = useState({
-    medication: '',
-    dosage: '',
-    frequency: '',
-    duration: '',
-    notes: '',
-  });
+  const [medicines, setMedicines] = useState([
+    { medicineName: '', dosage: '', frequency: '', duration: '', notes: '' },
+  ]);
+  const [finalNotes, setFinalNotes] = useState('');
   const [medicalHistory, setMedicalHistory] = useState(null);
   const [loading, setLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [error, setError] = useState('');
   const [historyError, setHistoryError] = useState('');
 
-  // Fetch medical history on mount (moved to top)
+  // Fetch medical history on mount
   useEffect(() => {
     const fetchMedicalHistory = async () => {
       if (!patient?._id) {
@@ -46,9 +42,9 @@ const AddPrescription = () => {
       }
     };
     fetchMedicalHistory();
-  }, [patient?._id]); // Dependency on patient._id
+  }, [patient?._id]);
 
-  // Early return for missing appointment or patient data (after hooks)
+  // Early return for missing appointment or patient data
   if (!appointment || !patient) {
     return (
       <div className="max-w-md p-6 mx-auto mt-16 text-center text-red-700 bg-red-100 border-l-4 border-red-500 rounded-lg">
@@ -57,9 +53,21 @@ const AddPrescription = () => {
     );
   }
 
-  const handleInputChange = (e) => {
+  const handleInputChange = (index, e) => {
     const { name, value } = e.target;
-    setPrescription((prev) => ({ ...prev, [name]: value }));
+    const updatedMedicines = [...medicines];
+    updatedMedicines[index] = { ...updatedMedicines[index], [name]: value };
+    setMedicines(updatedMedicines);
+  };
+
+  const addMedicine = () => {
+    setMedicines([...medicines, { medicineName: '', dosage: '', frequency: '', duration: '', notes: '' }]);
+  };
+
+  const removeMedicine = (index) => {
+    if (medicines.length > 1) {
+      setMedicines(medicines.filter((_, i) => i !== index));
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -71,18 +79,21 @@ const AddPrescription = () => {
       const token = localStorage.getItem('token');
       const config = { headers: { Authorization: `Bearer ${token}` } };
       const prescriptionData = {
-        patientId: patient._id,
+        userId: patient._id, // Changed to userId to match schema
         appointmentId: appointment._id,
-        medication: prescription.medication,
-        dosage: prescription.dosage,
-        frequency: prescription.frequency,
-        duration: prescription.duration,
-        notes: prescription.notes,
+        medicines: medicines.map((med) => ({
+          medicineName: med.medicineName,
+          dosage: med.dosage,
+          frequency: med.frequency,
+          duration: med.duration,
+          notes: med.notes,
+        })),
+        finalNotes,
       };
 
       await axios.post('http://localhost:5000/prescriptions/create', prescriptionData, config);
       alert('Prescription created successfully!');
-      navigate('/appointments');
+      navigate('/doctor-dashboard');
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to create prescription.');
     } finally {
@@ -149,7 +160,6 @@ const AddPrescription = () => {
                   <p className="text-gray-600">No medical history available.</p>
                 ) : (
                   <div className="space-y-4 text-gray-700">
-                    {/* Medications */}
                     {medicalHistory.medications?.length > 0 && (
                       <div>
                         <h3 className="font-semibold text-gray-800">Medications</h3>
@@ -164,8 +174,6 @@ const AddPrescription = () => {
                         </ul>
                       </div>
                     )}
-
-                    {/* Allergies */}
                     {medicalHistory.allergies?.length > 0 && (
                       <div>
                         <h3 className="font-semibold text-gray-800">Allergies</h3>
@@ -178,8 +186,6 @@ const AddPrescription = () => {
                         </ul>
                       </div>
                     )}
-
-                    {/* Surgeries */}
                     {medicalHistory.surgeries?.length > 0 && (
                       <div>
                         <h3 className="font-semibold text-gray-800">Surgeries</h3>
@@ -193,8 +199,6 @@ const AddPrescription = () => {
                         </ul>
                       </div>
                     )}
-
-                    {/* Family History */}
                     {medicalHistory.familyHistory?.length > 0 && (
                       <div>
                         <h3 className="font-semibold text-gray-800">Family History</h3>
@@ -207,8 +211,6 @@ const AddPrescription = () => {
                         </ul>
                       </div>
                     )}
-
-                    {/* Vital Signs */}
                     {medicalHistory.vitalSigns?.length > 0 && (
                       <div>
                         <h3 className="font-semibold text-gray-800">Vital Signs</h3>
@@ -231,65 +233,98 @@ const AddPrescription = () => {
             <div>
               <form onSubmit={handleSubmit} className="space-y-6">
                 <h2 className="mb-4 text-xl font-semibold text-gray-800">Prescription Details</h2>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div>
-                    <label className="block mb-1 text-sm font-medium text-gray-700">Medication</label>
-                    <input
-                      type="text"
-                      name="medication"
-                      value={prescription.medication}
-                      onChange={handleInputChange}
-                      className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                      placeholder="e.g., Ibuprofen"
-                      required
-                    />
+
+                {/* Medicines List */}
+                {medicines.map((medicine, index) => (
+                  <div key={index} className="relative p-4 space-y-4 rounded-lg bg-gray-50">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className="block mb-1 text-sm font-medium text-gray-700">Medicine Name</label>
+                        <input
+                          type="text"
+                          name="medicineName"
+                          value={medicine.medicineName}
+                          onChange={(e) => handleInputChange(index, e)}
+                          className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                          placeholder="e.g., Ibuprofen"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block mb-1 text-sm font-medium text-gray-700">Dosage</label>
+                        <input
+                          type="text"
+                          name="dosage"
+                          value={medicine.dosage}
+                          onChange={(e) => handleInputChange(index, e)}
+                          className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                          placeholder="e.g., 200 mg"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block mb-1 text-sm font-medium text-gray-700">Frequency</label>
+                        <input
+                          type="text"
+                          name="frequency"
+                          value={medicine.frequency}
+                          onChange={(e) => handleInputChange(index, e)}
+                          className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                          placeholder="e.g., Twice daily"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block mb-1 text-sm font-medium text-gray-700">Duration</label>
+                        <input
+                          type="text"
+                          name="duration"
+                          value={medicine.duration}
+                          onChange={(e) => handleInputChange(index, e)}
+                          className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                          placeholder="e.g., 7 days"
+                          required
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block mb-1 text-sm font-medium text-gray-700">Notes</label>
+                        <textarea
+                          name="notes"
+                          value={medicine.notes}
+                          onChange={(e) => handleInputChange(index, e)}
+                          className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                          placeholder="Additional instructions (optional)"
+                        />
+                      </div>
+                    </div>
+                    {medicines.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeMedicine(index)}
+                        className="absolute text-red-600 top-2 right-2 hover:text-red-800"
+                      >
+                        Remove
+                      </button>
+                    )}
                   </div>
-                  <div>
-                    <label className="block mb-1 text-sm font-medium text-gray-700">Dosage</label>
-                    <input
-                      type="text"
-                      name="dosage"
-                      value={prescription.dosage}
-                      onChange={handleInputChange}
-                      className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                      placeholder="e.g., 200 mg"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block mb-1 text-sm font-medium text-gray-700">Frequency</label>
-                    <input
-                      type="text"
-                      name="frequency"
-                      value={prescription.frequency}
-                      onChange={handleInputChange}
-                      className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                      placeholder="e.g., Twice daily"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block mb-1 text-sm font-medium text-gray-700">Duration</label>
-                    <input
-                      type="text"
-                      name="duration"
-                      value={prescription.duration}
-                      onChange={handleInputChange}
-                      className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                      placeholder="e.g., 7 days"
-                      required
-                    />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="block mb-1 text-sm font-medium text-gray-700">Notes</label>
-                    <textarea
-                      name="notes"
-                      value={prescription.notes}
-                      onChange={handleInputChange}
-                      className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                      placeholder="Additional instructions (optional)"
-                    />
-                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={addMedicine}
+                  className="w-full py-2 text-indigo-600 border border-indigo-600 rounded-lg hover:bg-indigo-50"
+                >
+                  Add Another Medicine
+                </button>
+
+                <div>
+                  <label className="block mb-1 text-sm font-medium text-gray-700">Final Notes</label>
+                  <textarea
+                    value={finalNotes}
+                    onChange={(e) => setFinalNotes(e.target.value)}
+                    className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Overall instructions (optional)"
+                  />
                 </div>
 
                 {error && (
