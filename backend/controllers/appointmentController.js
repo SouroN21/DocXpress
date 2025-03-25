@@ -257,7 +257,7 @@ module.exports = {
   createAppointment,
   updateAppointmentPayment,
   updateAppointmentStatus,
-  updateAppointment, // New export
+  updateAppointment, 
   getAllAppointments,
   getPatientAppointments,
   getDoctorAppointments,

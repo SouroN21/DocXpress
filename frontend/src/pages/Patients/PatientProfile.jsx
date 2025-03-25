@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
+import axios from 'axios';
 
 const PatientProfile = () => {
   const [profile, setProfile] = useState(null);
   const [appointments, setAppointments] = useState([]);
   const [filteredAppointments, setFilteredAppointments] = useState([]);
+  const [prescriptions, setPrescriptions] = useState([]);
   const [editMode, setEditMode] = useState(false);
   const [editAppointmentId, setEditAppointmentId] = useState(null);
   const [editFormData, setEditFormData] = useState({ dateTime: '', mode: '' });
@@ -30,9 +31,10 @@ const PatientProfile = () => {
         const patientId = decodedToken.id;
         const config = { headers: { Authorization: `Bearer ${token.trim()}` } };
 
-        const [profileRes, appointmentRes] = await Promise.all([
+        const [profileRes, appointmentRes, prescriptionRes] = await Promise.all([
           axios.get(`http://localhost:5000/user/${patientId}`, config),
           axios.get(`http://localhost:5000/appointment/patient/${patientId}`, config),
+          axios.get(`http://localhost:5000/prescriptions/my-prescriptions`, config),
         ]);
 
         setProfile(profileRes.data);
@@ -43,8 +45,9 @@ const PatientProfile = () => {
         });
 
         setAppointments(appointmentRes.data);
+        setPrescriptions(prescriptionRes.data.prescriptions || []); // Assuming response is { prescriptions: [...] }
       } catch (err) {
-        setError('Failed to fetch profile.');
+        setError('Failed to fetch profile or prescriptions.');
       } finally {
         setLoading(false);
       }
@@ -106,7 +109,7 @@ const PatientProfile = () => {
   const startEditingAppointment = (appointment) => {
     setEditAppointmentId(appointment._id);
     setEditFormData({
-      dateTime: new Date(appointment.dateTime).toISOString().slice(0, 16), // For datetime-local input
+      dateTime: new Date(appointment.dateTime).toISOString().slice(0, 16),
       mode: appointment.mode,
     });
   };
@@ -184,7 +187,7 @@ const PatientProfile = () => {
             </Link>
           </div>
 
-          {/* Profile Edit/View */}
+          {/* Profile Edit/View and Appointments/Prescriptions */}
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
             <div className="p-6 bg-gray-100 rounded-lg shadow-md">
               {editMode ? (
@@ -221,103 +224,135 @@ const PatientProfile = () => {
               )}
             </div>
 
-            {/* Appointment List */}
-            <div className="lg:col-span-2">
-              <h2 className="mb-4 text-2xl font-semibold">Appointments</h2>
-
-              {/* Filter Buttons */}
-              <div className="flex flex-wrap gap-3 mb-6">
-                {['all', 'confirmed', 'pending', 'canceled', 'completed'].map((status) => (
-                  <button key={status} onClick={() => handleFilterChange(status)}
-                    className={`px-4 py-2 rounded-full text-sm font-medium shadow
-                      ${filter === status ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}>
-                    {status.charAt(0).toUpperCase() + status.slice(1)}
-                  </button>
-                ))}
-              </div>
-
-              {/* Appointment Cards */}
-              {filteredAppointments.length === 0 ? (
-                <p className="py-4 text-center text-gray-600">No appointments found.</p>
-              ) : (
-                <div className="space-y-4">
-                  {filteredAppointments.map((app) => (
-                    <div key={app._id} className="p-5 bg-gray-100 rounded-lg shadow hover:shadow-md">
-                      {editAppointmentId === app._id ? (
-                        <form onSubmit={handleUpdateAppointment} className="space-y-4">
-                          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                            <div>
-                              <label className="block mb-1 text-sm font-medium text-gray-700">Date & Time</label>
-                              <input
-                                type="datetime-local"
-                                name="dateTime"
-                                value={editFormData.dateTime}
-                                onChange={handleEditAppointmentChange}
-                                className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                                required
-                              />
-                            </div>
-                            <div>
-                              <label className="block mb-1 text-sm font-medium text-gray-700">Mode</label>
-                              <select
-                                name="mode"
-                                value={editFormData.mode}
-                                onChange={handleEditAppointmentChange}
-                                className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                                required
-                              >
-                                <option value="In-Person">In-Person</option>
-                                <option value="Online">Online</option>
-                              </select>
-                            </div>
-                          </div>
-                          <div className="flex gap-4">
-                            <button
-                              type="submit"
-                              className="flex-1 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700"
-                              disabled={loading}
-                            >
-                              {loading ? 'Saving...' : 'Save'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setEditAppointmentId(null)}
-                              className="flex-1 py-2 bg-gray-300 rounded-lg hover:bg-gray-400"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </form>
-                      ) : (
-                        <div>
-                          <div className="flex flex-wrap justify-between gap-4">
-                            <div><strong>Doctor:</strong> Dr. {app.doctorId?.firstName} {app.doctorId?.lastName}</div>
-                            <div><strong>Date:</strong> {new Date(app.dateTime).toLocaleString()}</div>
-                            <div><strong>Mode:</strong> {app.mode}</div>
-                            <div><strong>Status:</strong> {app.status.charAt(0).toUpperCase() + app.status.slice(1)}</div>
-                          </div>
-                          {app.status === 'Pending' && (
-                            <div className="flex gap-4 mt-4">
-                              <button
-                                onClick={() => startEditingAppointment(app)}
-                                className="px-4 py-2 text-white bg-yellow-500 rounded-lg hover:bg-yellow-600"
-                              >
-                                Edit
-                              </button>
-                              <button
-                                onClick={() => handleDeleteAppointment(app._id)}
-                                className="px-4 py-2 text-white bg-red-500 rounded-lg hover:bg-red-600"
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
+            <div className="space-y-8 lg:col-span-2">
+              {/* Appointment List */}
+              <div>
+                <h2 className="mb-4 text-2xl font-semibold">Appointments</h2>
+                <div className="flex flex-wrap gap-3 mb-6">
+                  {['all', 'confirmed', 'pending', 'canceled', 'completed'].map((status) => (
+                    <button key={status} onClick={() => handleFilterChange(status)}
+                      className={`px-4 py-2 rounded-full text-sm font-medium shadow
+                        ${filter === status ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}>
+                      {status.charAt(0).toUpperCase() + status.slice(1)}
+                    </button>
                   ))}
                 </div>
-              )}
+                {filteredAppointments.length === 0 ? (
+                  <p className="py-4 text-center text-gray-600">No appointments found.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {filteredAppointments.map((app) => (
+                      <div key={app._id} className="p-5 bg-gray-100 rounded-lg shadow hover:shadow-md">
+                        {editAppointmentId === app._id ? (
+                          <form onSubmit={handleUpdateAppointment} className="space-y-4">
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                              <div>
+                                <label className="block mb-1 text-sm font-medium text-gray-700">Date & Time</label>
+                                <input
+                                  type="datetime-local"
+                                  name="dateTime"
+                                  value={editFormData.dateTime}
+                                  onChange={handleEditAppointmentChange}
+                                  className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                                  required
+                                />
+                              </div>
+                              <div>
+                                <label className="block mb-1 text-sm font-medium text-gray-700">Mode</label>
+                                <select
+                                  name="mode"
+                                  value={editFormData.mode}
+                                  onChange={handleEditAppointmentChange}
+                                  className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                                  required
+                                >
+                                  <option value="In-Person">In-Person</option>
+                                  <option value="Online">Online</option>
+                                </select>
+                              </div>
+                            </div>
+                            <div className="flex gap-4">
+                              <button
+                                type="submit"
+                                className="flex-1 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700"
+                                disabled={loading}
+                              >
+                                {loading ? 'Saving...' : 'Save'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditAppointmentId(null)}
+                                className="flex-1 py-2 bg-gray-300 rounded-lg hover:bg-gray-400"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </form>
+                        ) : (
+                          <div>
+                            <div className="flex flex-wrap justify-between gap-4">
+                              <div><strong>Doctor:</strong> Dr. {app.doctorId?.firstName} {app.doctorId?.lastName}</div>
+                              <div><strong>Date:</strong> {new Date(app.dateTime).toLocaleString()}</div>
+                              <div><strong>Mode:</strong> {app.mode}</div>
+                              <div><strong>Status:</strong> {app.status.charAt(0).toUpperCase() + app.status.slice(1)}</div>
+                            </div>
+                            {app.status === 'Pending' && (
+                              <div className="flex gap-4 mt-4">
+                                <button
+                                  onClick={() => startEditingAppointment(app)}
+                                  className="px-4 py-2 text-white bg-yellow-500 rounded-lg hover:bg-yellow-600"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteAppointment(app._id)}
+                                  className="px-4 py-2 text-white bg-red-500 rounded-lg hover:bg-red-600"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Prescription List */}
+              <div>
+                <h2 className="mb-4 text-2xl font-semibold">Prescriptions</h2>
+                {prescriptions.length === 0 ? (
+                  <p className="py-4 text-center text-gray-600">No prescriptions found.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {prescriptions.map((prescription) => (
+                      <div key={prescription._id} className="p-5 bg-gray-100 rounded-lg shadow hover:shadow-md">
+                        <div className="space-y-2">
+                          <p><strong>Appointment Date:</strong> {new Date(prescription.appointmentId?.dateTime).toLocaleString()}</p>
+                          <p><strong>Doctor:</strong> Dr. {prescription.doctorId?.firstName} {prescription.doctorId?.lastName}</p>
+                          <div>
+                            <strong>Medicines:</strong>
+                            <ul className="ml-4 list-disc">
+                              {prescription.medicines.map((med, index) => (
+                                <li key={index}>
+                                  {med.medicineName} - {med.dosage}, {med.frequency}, {med.duration}
+                                  {med.notes && <span> (Notes: {med.notes})</span>}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                          {prescription.finalNotes && (
+                            <p><strong>Final Notes:</strong> {prescription.finalNotes}</p>
+                          )}
+                          <p><strong>Issued At:</strong> {new Date(prescription.issuedAt).toLocaleString()}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

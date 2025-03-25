@@ -24,7 +24,7 @@ import Header from './components/Header';
 import AdminHeader from './components/AdminHeader';
 import DoctorHeader from './components/DoctorHeader';
 import Footer from './components/Footer';
-
+import PrescriptionDetail from './components/PrescriptionDetail';
 import Contact from './pages/StaticPages/Contact';
 import About from './pages/StaticPages/About';
 
@@ -99,6 +99,7 @@ function App() {
           <Route path="/reminder" element={<Reminders />} />
           <Route path="/addprescription" element={<AddPrescription />} />
           <Route path="/medical-history" element={<MedicalHistory />} />
+          <Route path="/prescription/:id" element={<PrescriptionDetail />} />
         </Routes>
       </AppLayout>
     </Router>

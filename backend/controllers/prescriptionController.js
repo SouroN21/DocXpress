@@ -162,10 +162,45 @@ const deletePrescription = async (req, res) => {
     res.status(500).json({ message: 'Error deleting prescription', error: error.message });
   }
 };
+// Get Prescription by Appointment ID
+const getPrescriptionByAppointment = async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+    const prescription = await Prescription.findOne({ appointmentId })
+      .populate('userId', 'firstName lastName email')
+      .populate('doctorId', 'firstName lastName');
+    if (!prescription) {
+      return res.status(404).json({ message: 'No prescription found for this appointment' });
+    }
+    res.status(200).json({ prescription });
+  } catch (error) {
+    console.error('Error fetching prescription:', error);
+    res.status(500).json({ message: 'Error fetching prescription', error: error.message });
+  }
+};
+// Get Prescription by ID
+const getPrescriptionById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const prescription = await Prescription.findById(id)
+      .populate('userId', 'firstName lastName email')
+      .populate('doctorId', 'firstName lastName')
+      .populate('appointmentId', 'dateTime mode status');
+    if (!prescription) {
+      return res.status(404).json({ message: 'Prescription not found' });
+    }
+    res.status(200).json({ prescription });
+  } catch (error) {
+    console.error('Error fetching prescription:', error);
+    res.status(500).json({ message: 'Error fetching prescription', error: error.message });
+  }
+};
 
 module.exports = {
   createPrescription,
   updatePrescription,
   getPatientPrescriptions,
   deletePrescription,
+  getPrescriptionByAppointment,
+  getPrescriptionById,
 };
