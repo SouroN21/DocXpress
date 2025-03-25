@@ -7,6 +7,8 @@ const PatientProfile = () => {
   const [appointments, setAppointments] = useState([]);
   const [filteredAppointments, setFilteredAppointments] = useState([]);
   const [editMode, setEditMode] = useState(false);
+  const [editAppointmentId, setEditAppointmentId] = useState(null);
+  const [editFormData, setEditFormData] = useState({ dateTime: '', mode: '' });
   const [filter, setFilter] = useState('all');
   const [formData, setFormData] = useState({ firstName: '', lastName: '', phoneNumber: '' });
   const [loading, setLoading] = useState(true);
@@ -39,8 +41,8 @@ const PatientProfile = () => {
           lastName: profileRes.data.lastName,
           phoneNumber: profileRes.data.phoneNumber || '',
         });
+
         setAppointments(appointmentRes.data);
-        setFilteredAppointments(appointmentRes.data);
       } catch (err) {
         setError('Failed to fetch profile.');
       } finally {
@@ -50,11 +52,17 @@ const PatientProfile = () => {
     fetchProfile();
   }, [token, navigate]);
 
+  useEffect(() => {
+    handleFilterChange(filter);
+  }, [appointments]);
+
   const handleFilterChange = (status) => {
     setFilter(status);
-    setFilteredAppointments(status === 'all'
-      ? appointments
-      : appointments.filter((app) => app.status === status));
+    setFilteredAppointments(
+      status === 'all'
+        ? appointments
+        : appointments.filter((app) => app.status.toLowerCase() === status.toLowerCase())
+    );
   };
 
   const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -91,8 +99,74 @@ const PatientProfile = () => {
     }
   };
 
-  if (loading) return <div className="py-20 text-lg text-center">Loading profile...</div>;
-  if (error) return <div className="p-4 text-center text-red-700 bg-red-100 rounded-lg">{error}</div>;
+  const handleEditAppointmentChange = (e) => {
+    setEditFormData({ ...editFormData, [e.target.name]: e.target.value });
+  };
+
+  const startEditingAppointment = (appointment) => {
+    setEditAppointmentId(appointment._id);
+    setEditFormData({
+      dateTime: new Date(appointment.dateTime).toISOString().slice(0, 16), // For datetime-local input
+      mode: appointment.mode,
+    });
+  };
+
+  const handleUpdateAppointment = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    try {
+      const response = await axios.put(
+        'http://localhost:5000/appointment/update',
+        { appointmentId: editAppointmentId, ...editFormData },
+        { headers: { Authorization: `Bearer ${token.trim()}` } }
+      );
+      setAppointments(
+        appointments.map((app) =>
+          app._id === editAppointmentId ? response.data.appointment : app
+        )
+      );
+      setEditAppointmentId(null);
+      alert('Appointment updated successfully!');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to update appointment.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteAppointment = async (appointmentId) => {
+    if (!window.confirm('Are you sure you want to delete this appointment?')) return;
+    setLoading(true);
+    setError('');
+    try {
+      await axios.delete(`http://localhost:5000/appointment/delete/${appointmentId}`, {
+        headers: { Authorization: `Bearer ${token.trim()}` },
+      });
+      setAppointments(appointments.filter((app) => app._id !== appointmentId));
+      alert('Appointment deleted successfully!');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to delete appointment.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) return (
+    <div className="flex items-center justify-center min-h-screen">
+      <svg className="w-8 h-8 text-blue-500 animate-spin" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+      </svg>
+      <span className="ml-3 text-lg text-gray-600">Loading profile...</span>
+    </div>
+  );
+
+  if (error) return (
+    <div className="max-w-md p-6 mx-auto mt-16 text-center text-red-700 bg-red-100 border-l-4 border-red-500 rounded-lg">
+      {error}
+    </div>
+  );
 
   return (
     <div className="min-h-screen py-12 bg-gray-50">
@@ -100,10 +174,13 @@ const PatientProfile = () => {
         <div className="p-8 bg-white shadow-xl rounded-xl">
           <h1 className="mb-8 text-4xl font-bold text-center text-blue-700">Patient Profile</h1>
 
-          {/* Reminder Button */}
-          <div className="mb-8 text-center">
+          {/* Reminder and Medical History Buttons */}
+          <div className="mb-8 space-x-4 text-center">
             <Link to="/reminder" className="px-6 py-3 text-white bg-green-500 rounded-lg shadow hover:bg-green-600">
               Go to Medicine Reminders
+            </Link>
+            <Link to="/medical-history" className="px-6 py-3 text-white bg-indigo-500 rounded-lg shadow hover:bg-indigo-600">
+              Medical History
             </Link>
           </div>
 
@@ -113,11 +190,11 @@ const PatientProfile = () => {
               {editMode ? (
                 <form onSubmit={handleUpdate} className="space-y-4">
                   <input name="firstName" value={formData.firstName} onChange={handleChange} required
-                    className="w-full p-3 border rounded-lg" placeholder="First Name" />
+                    className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="First Name" />
                   <input name="lastName" value={formData.lastName} onChange={handleChange} required
-                    className="w-full p-3 border rounded-lg" placeholder="Last Name" />
+                    className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Last Name" />
                   <input name="phoneNumber" value={formData.phoneNumber} onChange={handleChange}
-                    className="w-full p-3 border rounded-lg" placeholder="Phone Number" />
+                    className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Phone Number" />
                   <div className="flex gap-4">
                     <button type="submit" className="flex-1 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700">
                       Save
@@ -147,9 +224,10 @@ const PatientProfile = () => {
             {/* Appointment List */}
             <div className="lg:col-span-2">
               <h2 className="mb-4 text-2xl font-semibold">Appointments</h2>
+
               {/* Filter Buttons */}
               <div className="flex flex-wrap gap-3 mb-6">
-                {['all', 'confirmed', 'pending', 'canceled'].map((status) => (
+                {['all', 'confirmed', 'pending', 'canceled', 'completed'].map((status) => (
                   <button key={status} onClick={() => handleFilterChange(status)}
                     className={`px-4 py-2 rounded-full text-sm font-medium shadow
                       ${filter === status ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}>
@@ -165,18 +243,77 @@ const PatientProfile = () => {
                 <div className="space-y-4">
                   {filteredAppointments.map((app) => (
                     <div key={app._id} className="p-5 bg-gray-100 rounded-lg shadow hover:shadow-md">
-                      <div className="flex flex-wrap justify-between gap-4">
-                        <div><strong>Doctor:</strong> Dr. {app.doctorId?.firstName} {app.doctorId?.lastName}</div>
-                        <div><strong>Date:</strong> {new Date(app.dateTime).toLocaleString()}</div>
-                        <div><strong>Mode:</strong> {app.mode}</div>
-                        <div><strong>Status:</strong> <span className={
-                          app.status === 'confirmed' ? 'text-green-600 font-bold'
-                            : app.status === 'pending' ? 'text-yellow-600 font-bold'
-                              : 'text-red-600 font-bold'
-                        }>
-                          {app.status.charAt(0).toUpperCase() + app.status.slice(1)}
-                        </span></div>
-                      </div>
+                      {editAppointmentId === app._id ? (
+                        <form onSubmit={handleUpdateAppointment} className="space-y-4">
+                          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <div>
+                              <label className="block mb-1 text-sm font-medium text-gray-700">Date & Time</label>
+                              <input
+                                type="datetime-local"
+                                name="dateTime"
+                                value={editFormData.dateTime}
+                                onChange={handleEditAppointmentChange}
+                                className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                                required
+                              />
+                            </div>
+                            <div>
+                              <label className="block mb-1 text-sm font-medium text-gray-700">Mode</label>
+                              <select
+                                name="mode"
+                                value={editFormData.mode}
+                                onChange={handleEditAppointmentChange}
+                                className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                                required
+                              >
+                                <option value="In-Person">In-Person</option>
+                                <option value="Online">Online</option>
+                              </select>
+                            </div>
+                          </div>
+                          <div className="flex gap-4">
+                            <button
+                              type="submit"
+                              className="flex-1 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700"
+                              disabled={loading}
+                            >
+                              {loading ? 'Saving...' : 'Save'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditAppointmentId(null)}
+                              className="flex-1 py-2 bg-gray-300 rounded-lg hover:bg-gray-400"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </form>
+                      ) : (
+                        <div>
+                          <div className="flex flex-wrap justify-between gap-4">
+                            <div><strong>Doctor:</strong> Dr. {app.doctorId?.firstName} {app.doctorId?.lastName}</div>
+                            <div><strong>Date:</strong> {new Date(app.dateTime).toLocaleString()}</div>
+                            <div><strong>Mode:</strong> {app.mode}</div>
+                            <div><strong>Status:</strong> {app.status.charAt(0).toUpperCase() + app.status.slice(1)}</div>
+                          </div>
+                          {app.status === 'Pending' && (
+                            <div className="flex gap-4 mt-4">
+                              <button
+                                onClick={() => startEditingAppointment(app)}
+                                className="px-4 py-2 text-white bg-yellow-500 rounded-lg hover:bg-yellow-600"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDeleteAppointment(app._id)}
+                                className="px-4 py-2 text-white bg-red-500 rounded-lg hover:bg-red-600"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

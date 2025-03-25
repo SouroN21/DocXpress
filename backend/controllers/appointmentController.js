@@ -1,4 +1,4 @@
-const Appointment = require("../models/appointmentsModel"); // Fixed typo
+const Appointment = require("../models/appointmentsModel");
 const Doctor = require("../models/doctorModel");
 const User = require("../models/userModel");
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
@@ -12,12 +12,13 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-const sendAppointmentEmail = async (patient, doctor, appointment) => {
+const sendAppointmentEmail = async (patient, doctor, appointment, action = 'scheduled') => {
+  const subject = action === 'updated' ? 'Appointment Updated' : action === 'deleted' ? 'Appointment Canceled' : 'New Appointment Scheduled';
   const mailOptions = {
     from: process.env.EMAIL_USER,
     to: [patient.email, doctor.userId.email],
-    subject: 'New Appointment Scheduled',
-    text: `An appointment has been scheduled:\n
+    subject,
+    text: `An appointment has been ${action}:\n
       Patient: ${patient.firstName} ${patient.lastName}\n
       Doctor: ${doctor.userId.firstName} ${doctor.userId.lastName}\n
       Date: ${new Date(appointment.dateTime).toLocaleString()}\n
@@ -30,11 +31,10 @@ const sendAppointmentEmail = async (patient, doctor, appointment) => {
 
 const createAppointment = async (req, res) => {
   try {
-    const { patientId, doctorId, dateTime, mode } = req.body;
+    const { doctorId, dateTime, mode } = req.body;
+    const patientId = req.user.id; // From JWT middleware
 
-    console.log('Received doctorId:', doctorId); // Debug log
-
-    if (!patientId || !doctorId || !dateTime || !mode) {
+    if (!doctorId || !dateTime || !mode) {
       return res.status(400).json({ message: "All required fields must be provided" });
     }
 
@@ -69,7 +69,7 @@ const createAppointment = async (req, res) => {
               name: `Appointment with Dr. ${doctor.userId.lastName}`,
               description: `Mode: ${mode}, Date: ${new Date(dateTime).toLocaleString()}`,
             },
-            unit_amount: doctor.consultationFee * 100,
+            unit_amount: doctor.consultationFee * 100 || 5000, // Default to $50 if fee not set
           },
           quantity: 1,
         },
@@ -82,8 +82,8 @@ const createAppointment = async (req, res) => {
 
     await sendAppointmentEmail(patient, doctor, appointment);
 
-    res.status(201).json({ 
-      message: "Appointment created, proceed to payment", 
+    res.status(201).json({
+      message: "Appointment created, proceed to payment",
       appointment,
       stripeSessionId: session.id,
     });
@@ -96,7 +96,7 @@ const createAppointment = async (req, res) => {
 const updateAppointmentPayment = async (req, res) => {
   try {
     const { appointmentId } = req.body;
-    const appointment = await Appointment.findById(appointmentId);
+    const appointment = await Appointment.findById(appointmentId).populate('patientId doctorId');
     if (!appointment) {
       return res.status(404).json({ message: "Appointment not found" });
     }
@@ -111,6 +111,7 @@ const updateAppointmentPayment = async (req, res) => {
     res.status(500).json({ message: "Error updating payment status", error: error.message });
   }
 };
+
 const updateAppointmentStatus = async (req, res) => {
   try {
     const { appointmentId, status } = req.body;
@@ -130,9 +131,8 @@ const updateAppointmentStatus = async (req, res) => {
       return res.status(404).json({ message: "Appointment not found" });
     }
 
-    // Assuming doctorId is the User _id from the appointment
     if (appointment.doctorId.toString() !== userId) {
-      return res.status(403).json({ message: "Only the assigned doctor can update this appointment" });
+      return res.status(403).json({ message: "Only the assigned doctor can update this appointment status" });
     }
 
     appointment.status = status;
@@ -142,6 +142,48 @@ const updateAppointmentStatus = async (req, res) => {
   } catch (error) {
     console.error('Error updating appointment status:', error);
     res.status(500).json({ message: "Error updating appointment status", error: error.message });
+  }
+};
+
+// New function: Patient updates appointment (dateTime and mode)
+const updateAppointment = async (req, res) => {
+  try {
+    const { appointmentId, dateTime, mode } = req.body;
+    const userId = req.user.id;
+
+    if (!appointmentId || (!dateTime && !mode)) {
+      return res.status(400).json({ message: "Appointment ID and at least one field (dateTime or mode) are required" });
+    }
+
+    const appointment = await Appointment.findById(appointmentId).populate('patientId doctorId');
+    if (!appointment) {
+      return res.status(404).json({ message: "Appointment not found" });
+    }
+
+    if (appointment.patientId._id.toString() !== userId) {
+      return res.status(403).json({ message: "Only the patient who booked this appointment can update it" });
+    }
+
+    if (appointment.paidStatus === 'Paid' || appointment.status === 'Confirmed' || appointment.status === 'Completed') {
+      return res.status(403).json({ message: "Cannot update a paid or confirmed/completed appointment" });
+    }
+
+    if (dateTime) appointment.dateTime = dateTime;
+    if (mode) {
+      const validModes = ['In-Person', 'Online'];
+      if (!validModes.includes(mode)) {
+        return res.status(400).json({ message: "Invalid mode value" });
+      }
+      appointment.mode = mode;
+    }
+
+    const updatedAppointment = await appointment.save();
+    await sendAppointmentEmail(appointment.patientId, appointment.doctorId, updatedAppointment, 'updated');
+
+    res.status(200).json({ message: "Appointment updated successfully", appointment: updatedAppointment });
+  } catch (error) {
+    console.error('Error updating appointment:', error);
+    res.status(500).json({ message: "Error updating appointment", error: error.message });
   }
 };
 
@@ -184,10 +226,26 @@ const getDoctorAppointments = async (req, res) => {
 const deleteAppointment = async (req, res) => {
   try {
     const { appointmentId } = req.params;
-    const deletedAppointment = await Appointment.findByIdAndDelete(appointmentId);
-    if (!deletedAppointment) {
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    const appointment = await Appointment.findById(appointmentId).populate('patientId doctorId');
+    if (!appointment) {
       return res.status(404).json({ message: "Appointment not found" });
     }
+
+    // Allow deletion by patient (if not paid/confirmed) or admin
+    if (appointment.patientId._id.toString() !== userId && userRole !== 'admin') {
+      return res.status(403).json({ message: "Only the patient or an admin can delete this appointment" });
+    }
+
+    if (appointment.patientId._id.toString() === userId && (appointment.paidStatus === 'Paid' || appointment.status === 'Confirmed')) {
+      return res.status(403).json({ message: "Cannot delete a paid or confirmed appointment" });
+    }
+
+    await Appointment.findByIdAndDelete(appointmentId);
+    await sendAppointmentEmail(appointment.patientId, appointment.doctorId, appointment, 'deleted');
+
     res.status(200).json({ message: "Appointment deleted successfully" });
   } catch (error) {
     console.error('Error deleting appointment:', error);
@@ -199,6 +257,7 @@ module.exports = {
   createAppointment,
   updateAppointmentPayment,
   updateAppointmentStatus,
+  updateAppointment, // New export
   getAllAppointments,
   getPatientAppointments,
   getDoctorAppointments,

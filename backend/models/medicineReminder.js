@@ -31,7 +31,7 @@ const medicineReminderSchema = new mongoose.Schema({
       },
       reminderTimes: [
         {
-          type: String, // Example: "08:00 AM", "02:00 PM"
+          type: String, 
           required: true,
         },
       ],

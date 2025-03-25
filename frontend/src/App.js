@@ -16,6 +16,8 @@ import PaymentCancel from './pages/Appoinments/PaymentCancel';
 import PatientProfile from './pages/Patients/PatientProfile';
 import AdminDashboard from './pages/Admin/AdminDashboard';
 import Reminders from './pages/Patients/Reminders';
+import AddPrescription from './pages/Prescription/Add-Prescription';
+import MedicalHistory from './pages/Prescription/MedicalHistory';
 
 // Components
 import Header from './components/Header';
@@ -95,6 +97,8 @@ function App() {
           <Route path="/about" element={<About />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/reminder" element={<Reminders />} />
+          <Route path="/addprescription" element={<AddPrescription />} />
+          <Route path="/medical-history" element={<MedicalHistory />} />
         </Routes>
       </AppLayout>
     </Router>

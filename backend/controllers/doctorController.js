@@ -184,6 +184,51 @@ const updateDoctorStatus = async (req, res) => {
   }
 };
 
+// New function: Delete Doctor Profile
+const deleteDoctorProfile = async (req, res) => {
+  try {
+    const { doctorId } = req.params; // Doctor _id from URL
+    const userId = req.user.id; // Current user from JWT
+    const userRole = req.user.role;
+
+    if (!mongoose.Types.ObjectId.isValid(doctorId)) {
+      return res.status(400).json({ message: "Invalid doctor ID format" });
+    }
+
+    const doctor = await Doctor.findById(doctorId).populate('userId');
+    if (!doctor) {
+      return res.status(404).json({ message: 'Doctor profile not found' });
+    }
+
+    // Check permissions: Only the doctor themselves or an admin can delete
+    if (doctor.userId._id.toString() !== userId && userRole !== 'admin') {
+      return res.status(403).json({ message: 'Only the doctor or an admin can delete this profile' });
+    }
+
+    // Optionally, check if doctor has active appointments (if you want to restrict deletion)
+    const activeAppointments = await mongoose.model('Appointment').find({
+      doctorId: doctor.userId._id,
+      status: { $in: ['Pending', 'Confirmed'] },
+    });
+    if (activeAppointments.length > 0 && userRole !== 'admin') {
+      return res.status(403).json({ message: 'Cannot delete profile with pending or confirmed appointments' });
+    }
+
+    // Delete the doctor profile
+    await Doctor.findByIdAndDelete(doctorId);
+
+    // Optionally, delete the associated User if the doctor deletes their own profile
+    if (doctor.userId._id.toString() === userId) {
+      await User.findByIdAndDelete(userId);
+    }
+
+    res.status(200).json({ message: 'Doctor profile deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting doctor profile:', error);
+    res.status(500).json({ message: 'Error deleting doctor profile', error: error.message });
+  }
+};
+
 module.exports = {
   createDoctorProfile: [upload.single('image'), createDoctorProfile],
   getAllDoctors,
@@ -191,4 +236,5 @@ module.exports = {
   getDoctorByUserId,
   updateDoctorProfile: [upload.single('image'), updateDoctorProfile],
   updateDoctorStatus,
+  deleteDoctorProfile, // Export the new function
 };

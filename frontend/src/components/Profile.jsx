@@ -1,5 +1,5 @@
-// components/Profile.js
 import React from 'react';
+import axios from 'axios';
 
 const Profile = ({
   doctorProfile,
@@ -9,7 +9,23 @@ const Profile = ({
   handleEditChange,
   handleProfileUpdate,
   loading,
+  onProfileDelete, // New prop to handle deletion in parent
 }) => {
+  const token = localStorage.getItem('token');
+
+  const handleDeleteProfile = async () => {
+    if (!window.confirm('Are you sure you want to delete your doctor profile? This action cannot be undone.')) return;
+    try {
+      await axios.delete(`http://localhost:5000/doctor/${doctorProfile._id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      alert('Doctor profile deleted successfully');
+      onProfileDelete(); // Notify parent to handle post-deletion logic (e.g., redirect)
+    } catch (error) {
+      alert(error.response?.data?.message || 'Error deleting doctor profile');
+    }
+  };
+
   return (
     <section className="max-w-3xl p-8 mx-auto bg-white shadow-lg rounded-2xl">
       <h3 className="mb-6 text-3xl font-bold text-center text-gray-800">My Profile</h3>
@@ -64,21 +80,31 @@ const Profile = ({
               />
             </div>
             <div className="w-full space-y-4 text-left">
-              {[['Name', `${doctorProfile.userId.firstName} ${doctorProfile.userId.lastName}`],
+              {[
+                ['Name', `${doctorProfile.userId.firstName} ${doctorProfile.userId.lastName}`],
                 ['Email', doctorProfile.userId.email],
                 ['Specialization', doctorProfile.specialization],
-                ['Phone Number', doctorProfile.userId.phoneNumber || 'Not provided']].map(([label, value]) => (
+                ['Phone Number', doctorProfile.userId.phoneNumber || 'Not provided'],
+              ].map(([label, value]) => (
                 <p key={label}>
                   <span className="font-medium text-gray-700">{label}:</span> {value}
                 </p>
               ))}
             </div>
-            <button
-              onClick={() => setEditMode(true)}
-              className="px-6 py-3 mt-4 text-white transition-all duration-200 bg-indigo-600 rounded-lg shadow hover:bg-indigo-700"
-            >
-              Edit Profile
-            </button>
+            <div className="flex space-x-4">
+              <button
+                onClick={() => setEditMode(true)}
+                className="px-6 py-3 mt-4 text-white transition-all duration-200 bg-indigo-600 rounded-lg shadow hover:bg-indigo-700"
+              >
+                Edit Profile
+              </button>
+              <button
+                onClick={handleDeleteProfile}
+                className="px-6 py-3 mt-4 text-white transition-all duration-200 bg-red-600 rounded-lg shadow hover:bg-red-700"
+              >
+                Delete Profile
+              </button>
+            </div>
           </div>
         )
       ) : (

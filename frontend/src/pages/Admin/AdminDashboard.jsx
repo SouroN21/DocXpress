@@ -1,78 +1,101 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
+import AdminDoctors from './AdminDoctors';
+import AdminAppointments from './AdminAppointments';
 
 const AdminDashboard = () => {
-  const navigate = useNavigate();
-  const token = localStorage.getItem('token');
+  const [activeSection, setActiveSection] = useState('doctors');
   const [doctors, setDoctors] = useState([]);
   const [appointments, setAppointments] = useState([]);
-  const [activeSection, setActiveSection] = useState('doctors');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-
-  let isAdmin = false;
-  if (token) {
-    try {
-      const decodedToken = JSON.parse(atob(token.split('.')[1]));
-      console.log('Decoded Token:', decodedToken); // Debug token
-      isAdmin = decodedToken.role === 'admin';
-    } catch (err) {
-      console.error('Error decoding token:', err);
-      localStorage.removeItem('token');
-    }
-  }
+  const navigate = useNavigate();
+  const token = localStorage.getItem('token');
 
   useEffect(() => {
-    if (!token || !isAdmin) {
+    if (!token) {
       navigate('/login');
       return;
     }
 
     const fetchData = async () => {
       try {
+        const decodedToken = JSON.parse(atob(token.split('.')[1]));
+        if (decodedToken.role !== 'admin') {
+          setError('Access restricted to admins only.');
+          setTimeout(() => navigate('/'), 2000);
+          return;
+        }
+
+        const currentTime = Math.floor(Date.now() / 1000);
+        if (decodedToken.exp < currentTime) {
+          setError('Session expired. Please log in again.');
+          localStorage.removeItem('token');
+          setTimeout(() => navigate('/login'), 2000);
+          return;
+        }
+
         const config = { headers: { Authorization: `Bearer ${token.trim()}` } };
-        console.log('Request Config:', config); // Debug headers
 
         const [doctorsResponse, appointmentsResponse] = await Promise.all([
-          axios.get('http://localhost:5000/doc/', config).catch(err => { throw err; }),
-          axios.get('http://localhost:5000/appointment/all', config).catch(err => { throw err; }),
+          axios.get('http://localhost:5000/doc/', config),
+          axios.get('http://localhost:5000/appointment/all', config),
         ]);
 
-        console.log('Doctors Response:', doctorsResponse.data); // Debug responses
-        console.log('Appointments Response:', appointmentsResponse.data);
-
-        setDoctors(doctorsResponse.data);
-        setAppointments(appointmentsResponse.data);
-        setLoading(false);
+        setDoctors(doctorsResponse.data || []);
+        setAppointments(appointmentsResponse.data || []);
       } catch (err) {
-        console.error('Fetch Error:', err.response?.data || err.message); // Log detailed error
         setError(err.response?.data?.message || 'Error fetching dashboard data');
+      } finally {
         setLoading(false);
       }
     };
-    fetchData();
-  }, [token, isAdmin, navigate]);
 
-  const handleDoctorStatus = async (doctorId, status) => {
-    try {
-      await axios.put(
-        'http://localhost:5000/doc/status',
-        { doctorId, status },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setDoctors(doctors.map(doc => (doc._id === doctorId ? { ...doc, status } : doc)));
-    } catch (err) {
-      setError('Error updating doctor status');
-    }
+    fetchData();
+  }, [token, navigate]);
+
+  const handleDoctorUpdate = (updatedDoctors) => {
+    setDoctors(updatedDoctors);
   };
 
-  if (!isAdmin) return null;
-  if (loading) return <p className="text-center text-gray-500">Loading dashboard...</p>;
-  if (error) return <p className="text-center text-red-500">{error}</p>;
+  const handleAppointmentUpdate = (updatedAppointments) => {
+    setAppointments(updatedAppointments);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    navigate('/login');
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-100">
+        <svg className="w-8 h-8 text-blue-500 animate-spin" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+        <span className="ml-3 text-lg text-gray-600">Loading dashboard...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-md p-6 mx-auto mt-16 text-center border border-red-200 rounded-lg shadow-md bg-red-50">
+        <p className="text-lg text-red-600">{error}</p>
+        <button
+          onClick={() => navigate('/login')}
+          className="px-6 py-2 mt-4 text-white bg-blue-500 rounded-lg hover:bg-blue-600"
+        >
+          Go to Login
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex min-h-screen mt-16 bg-gray-100">
+    <div className="flex min-h-screen bg-gray-100">
       <div className="flex-shrink-0 w-64 text-white bg-gray-800">
         <div className="p-6">
           <h2 className="text-2xl font-bold">Admin Dashboard</h2>
@@ -95,106 +118,19 @@ const AdminDashboard = () => {
           >
             Appointments
           </button>
+          <button
+            onClick={handleLogout}
+            className="w-full px-6 py-3 text-left transition-colors hover:bg-red-700"
+          >
+            Logout
+          </button>
         </nav>
       </div>
-      <div className="flex-1 p-6">
+      <div className="flex-1 p-8">
         <div className="max-w-6xl mx-auto">
-          {activeSection === 'doctors' && (
-            <div className="p-6 bg-white rounded-lg shadow-md">
-              <h3 className="mb-4 text-2xl font-semibold text-gray-800">Manage Doctors</h3>
-              {doctors.length === 0 ? (
-                <p className="text-gray-500">No doctors found.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left">
-                    <thead>
-                      <tr className="bg-gray-200">
-                        <th className="p-3">Name</th>
-                        <th className="p-3">Specialization</th>
-                        <th className="p-3">Status</th>
-                        <th className="p-3">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {doctors.map((doctor) => (
-                        <tr key={doctor._id} className="border-b">
-                          <td className="p-3">
-                            {doctor.userId?.firstName
-                              ? `${doctor.userId.firstName} ${doctor.userId.lastName || ''}`
-                              : 'N/A'}
-                          </td>
-                          <td className="p-3">{doctor.specialization || 'N/A'}</td>
-                          <td className="p-3">{doctor.status || 'N/A'}</td>
-                          <td className="flex p-3 space-x-2">
-                            {doctor.status === 'pending' && (
-                              <>
-                                <button
-                                  onClick={() => handleDoctorStatus(doctor._id, 'active')}
-                                  className="px-2 py-1 text-white bg-green-500 rounded hover:bg-green-600"
-                                >
-                                  Approve
-                                </button>
-                                <button
-                                  onClick={() => handleDoctorStatus(doctor._id, 'inactive')}
-                                  className="px-2 py-1 text-white bg-red-500 rounded hover:bg-red-600"
-                                >
-                                  Reject
-                                </button>
-                              </>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
+          {activeSection === 'doctors' && <AdminDoctors doctors={doctors} onDoctorUpdate={handleDoctorUpdate} />}
           {activeSection === 'appointments' && (
-            <div className="p-6 bg-white rounded-lg shadow-md">
-              <h3 className="mb-4 text-2xl font-semibold text-gray-800">All Appointments</h3>
-              {appointments.length === 0 ? (
-                <p className="text-gray-500">No appointments found.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left">
-                    <thead>
-                      <tr className="bg-gray-200">
-                        <th className="p-3">Patient</th>
-                        <th className="p-3">Doctor</th>
-                        <th className="p-3">Date & Time</th>
-                        <th className="p-3">Mode</th>
-                        <th className="p-3">Payment</th>
-                        <th className="p-3">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {appointments.map((appointment) => (
-                        <tr key={appointment._id} className="border-b">
-                          <td className="p-3">
-                            {appointment.patientId?.firstName
-                              ? `${appointment.patientId.firstName} ${appointment.patientId.lastName || ''}`
-                              : 'N/A'}
-                          </td>
-                          <td className="p-3">
-                            {appointment.doctorId?.firstName
-                              ? `${appointment.doctorId.firstName} ${appointment.doctorId.lastName || ''}`
-                              : 'N/A'}
-                          </td>
-                          <td className="p-3">
-                            {appointment.dateTime ? new Date(appointment.dateTime).toLocaleString() : 'N/A'}
-                          </td>
-                          <td className="p-3">{appointment.mode || 'N/A'}</td>
-                          <td className="p-3">{appointment.paidStatus || 'N/A'}</td>
-                          <td className="p-3">{appointment.status || 'N/A'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+            <AdminAppointments appointments={appointments} onAppointmentUpdate={handleAppointmentUpdate} />
           )}
         </div>
       </div>

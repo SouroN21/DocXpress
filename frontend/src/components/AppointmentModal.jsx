@@ -6,7 +6,7 @@ const AppointmentModal = ({ selectedAppointment, handleStatusUpdate, closeAppoin
   const navigate = useNavigate();
 
   const handleCreatePrescription = () => {
-    navigate('/prescription', { state: { appointment: selectedAppointment } });
+    navigate('/addprescription', { state: { appointment: selectedAppointment } });
   };
 
   return (
