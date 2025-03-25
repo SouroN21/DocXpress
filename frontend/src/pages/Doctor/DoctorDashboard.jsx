@@ -13,6 +13,7 @@ const DoctorDashboard = () => {
   const token = localStorage.getItem('token');
   const [doctorProfile, setDoctorProfile] = useState(null);
   const [appointments, setAppointments] = useState([]);
+  const [feedbacks, setFeedbacks] = useState([]);
   const [activeSection, setActiveSection] = useState('profile');
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [editMode, setEditMode] = useState(false);
@@ -47,9 +48,12 @@ const DoctorDashboard = () => {
 
     const fetchData = async () => {
       try {
-        const [profileResponse, appointmentResponse] = await Promise.all([
+        const [profileResponse, appointmentResponse, feedbackResponse] = await Promise.all([
           axios.get('http://localhost:5000/doc/by-user/me', { headers: { Authorization: `Bearer ${token}` } }),
           axios.get(`http://localhost:5000/appointment/doctor/${userId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          axios.get(`http://localhost:5000/feedback/doctor/${userId}`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
         ]);
@@ -62,6 +66,7 @@ const DoctorDashboard = () => {
           phoneNumber: profileResponse.data.userId.phoneNumber || '',
         });
         setAppointments(appointmentResponse.data);
+        setFeedbacks(feedbackResponse.data.feedbacks || []);
         setLoading(false);
       } catch (err) {
         setError(err.response?.data?.message || 'Error fetching dashboard data');
@@ -151,10 +156,16 @@ const DoctorDashboard = () => {
           <Appointments 
             appointments={appointments} 
             handleAppointmentClick={handleAppointmentClick}
-            handleStatusUpdate={handleStatusUpdate} // Add this
+            handleStatusUpdate={handleStatusUpdate}
           />
         )}
-        {activeSection === 'feedbacks' && <Feedbacks />}
+        {activeSection === 'feedbacks' && (
+          <Feedbacks 
+            feedbacks={feedbacks} 
+            setFeedbacks={setFeedbacks} 
+            token={token} // Pass token for API calls
+          />
+        )}
         {selectedAppointment && (
           <AppointmentModal
             selectedAppointment={selectedAppointment}

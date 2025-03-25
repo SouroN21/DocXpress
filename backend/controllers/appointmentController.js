@@ -144,6 +144,25 @@ const updateAppointmentStatus = async (req, res) => {
     res.status(500).json({ message: "Error updating appointment status", error: error.message });
   }
 };
+const getAppointmentById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const appointment = await Appointment.findById(id)
+      .populate('doctorId', 'firstName lastName specialization')
+      .populate('patientId', 'firstName lastName');
+    if (!appointment) {
+      return res.status(404).json({ message: 'Appointment not found' });
+    }
+    // Optional: Check if the patient owns this appointment
+    if (appointment.patientId._id.toString() !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Unauthorized to view this appointment' });
+    }
+    res.status(200).json(appointment);
+  } catch (error) {
+    console.error('Error fetching appointment:', error);
+    res.status(500).json({ message: 'Error fetching appointment', error: error.message });
+  }
+};
 
 // New function: Patient updates appointment (dateTime and mode)
 const updateAppointment = async (req, res) => {
@@ -262,4 +281,5 @@ module.exports = {
   getPatientAppointments,
   getDoctorAppointments,
   deleteAppointment,
+  getAppointmentById,
 };

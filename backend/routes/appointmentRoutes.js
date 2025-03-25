@@ -7,6 +7,7 @@ const {
   getAllAppointments, 
   getPatientAppointments, 
   getDoctorAppointments, 
+  getAppointmentById,
   deleteAppointment 
 } = require("../controllers/appointmentController");
 const { authenticate, authorize } = require("../middleware/authMiddleware");
@@ -21,5 +22,6 @@ router.delete("/delete/:appointmentId", authenticate, deleteAppointment);
 router.post("/payment-success", updateAppointmentPayment); 
 router.put("/status", authenticate, authorize(['doctor']), updateAppointmentStatus); 
 router.put("/update", authenticate, authorize(['patient']), updateAppointment); 
+router.get('/:id', authenticate, authorize(['patient', 'doctor', 'admin']), getAppointmentById);
 
 module.exports = router;

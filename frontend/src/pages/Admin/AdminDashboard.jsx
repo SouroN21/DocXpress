@@ -3,11 +3,13 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import AdminDoctors from './AdminDoctors';
 import AdminAppointments from './AdminAppointments';
+import AdminFeedbacks from './AdminFeedbacks'; // New component
 
 const AdminDashboard = () => {
   const [activeSection, setActiveSection] = useState('doctors');
   const [doctors, setDoctors] = useState([]);
   const [appointments, setAppointments] = useState([]);
+  const [feedbacks, setFeedbacks] = useState([]); // New state for feedbacks
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const navigate = useNavigate();
@@ -38,13 +40,15 @@ const AdminDashboard = () => {
 
         const config = { headers: { Authorization: `Bearer ${token.trim()}` } };
 
-        const [doctorsResponse, appointmentsResponse] = await Promise.all([
+        const [doctorsResponse, appointmentsResponse, feedbackResponse] = await Promise.all([
           axios.get('http://localhost:5000/doc/', config),
           axios.get('http://localhost:5000/appointment/all', config),
+          axios.get('http://localhost:5000/feedback/all', config), // New feedback fetch
         ]);
 
         setDoctors(doctorsResponse.data || []);
         setAppointments(appointmentsResponse.data || []);
+        setFeedbacks(feedbackResponse.data || []); // Set feedbacks
       } catch (err) {
         setError(err.response?.data?.message || 'Error fetching dashboard data');
       } finally {
@@ -61,6 +65,10 @@ const AdminDashboard = () => {
 
   const handleAppointmentUpdate = (updatedAppointments) => {
     setAppointments(updatedAppointments);
+  };
+
+  const handleFeedbackUpdate = (updatedFeedbacks) => {
+    setFeedbacks(updatedFeedbacks); // New handler for feedback updates
   };
 
   const handleLogout = () => {
@@ -119,6 +127,14 @@ const AdminDashboard = () => {
             Appointments
           </button>
           <button
+            onClick={() => setActiveSection('feedbacks')}
+            className={`w-full py-3 text-left px-6 transition-colors ${
+              activeSection === 'feedbacks' ? 'bg-gray-900' : 'hover:bg-gray-700'
+            }`}
+          >
+            Feedback
+          </button>
+          <button
             onClick={handleLogout}
             className="w-full px-6 py-3 text-left transition-colors hover:bg-red-700"
           >
@@ -131,6 +147,9 @@ const AdminDashboard = () => {
           {activeSection === 'doctors' && <AdminDoctors doctors={doctors} onDoctorUpdate={handleDoctorUpdate} />}
           {activeSection === 'appointments' && (
             <AdminAppointments appointments={appointments} onAppointmentUpdate={handleAppointmentUpdate} />
+          )}
+          {activeSection === 'feedbacks' && (
+            <AdminFeedbacks feedbacks={feedbacks} onFeedbackUpdate={handleFeedbackUpdate} token={token} />
           )}
         </div>
       </div>

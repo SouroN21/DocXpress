@@ -31,10 +31,10 @@ const PatientProfile = () => {
         const patientId = decodedToken.id;
         const config = { headers: { Authorization: `Bearer ${token.trim()}` } };
 
-        const [profileRes, appointmentRes, prescriptionRes] = await Promise.all([
+        // Fetch profile and appointments together
+        const [profileRes, appointmentRes] = await Promise.all([
           axios.get(`http://localhost:5000/user/${patientId}`, config),
           axios.get(`http://localhost:5000/appointment/patient/${patientId}`, config),
-          axios.get(`http://localhost:5000/prescriptions/my-prescriptions`, config),
         ]);
 
         setProfile(profileRes.data);
@@ -43,11 +43,19 @@ const PatientProfile = () => {
           lastName: profileRes.data.lastName,
           phoneNumber: profileRes.data.phoneNumber || '',
         });
-
         setAppointments(appointmentRes.data);
-        setPrescriptions(prescriptionRes.data.prescriptions || []); // Assuming response is { prescriptions: [...] }
+
+        // Fetch prescriptions separately
+        try {
+          const prescriptionRes = await axios.get(`http://localhost:5000/prescriptions/my-prescriptions`, config);
+          setPrescriptions(prescriptionRes.data.prescriptions || []);
+        } catch (prescriptionErr) {
+          console.warn('No prescriptions found or error fetching prescriptions:', prescriptionErr.response?.data || prescriptionErr.message);
+          setPrescriptions([]); // Set empty array if prescriptions fetch fails
+        }
       } catch (err) {
-        setError('Failed to fetch profile or prescriptions.');
+        setError('Failed to fetch profile or appointments.');
+        console.error('Error fetching profile/appointments:', err);
       } finally {
         setLoading(false);
       }
@@ -296,22 +304,32 @@ const PatientProfile = () => {
                               <div><strong>Mode:</strong> {app.mode}</div>
                               <div><strong>Status:</strong> {app.status.charAt(0).toUpperCase() + app.status.slice(1)}</div>
                             </div>
-                            {app.status === 'Pending' && (
-                              <div className="flex gap-4 mt-4">
+                            <div className="flex gap-4 mt-4">
+                              {app.status === 'Pending' && (
+                                <>
+                                  <button
+                                    onClick={() => startEditingAppointment(app)}
+                                    className="px-4 py-2 text-white bg-yellow-500 rounded-lg hover:bg-yellow-600"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteAppointment(app._id)}
+                                    className="px-4 py-2 text-white bg-red-500 rounded-lg hover:bg-red-600"
+                                  >
+                                    Delete
+                                  </button>
+                                </>
+                              )}
+                              {app.status === 'Completed' && (
                                 <button
-                                  onClick={() => startEditingAppointment(app)}
-                                  className="px-4 py-2 text-white bg-yellow-500 rounded-lg hover:bg-yellow-600"
+                                  onClick={() => navigate(`/feedback/create/${app._id}`)}
+                                  className="px-4 py-2 text-white bg-indigo-500 rounded-lg hover:bg-indigo-600"
                                 >
-                                  Edit
+                                  Add Feedback
                                 </button>
-                                <button
-                                  onClick={() => handleDeleteAppointment(app._id)}
-                                  className="px-4 py-2 text-white bg-red-500 rounded-lg hover:bg-red-600"
-                                >
-                                  Delete
-                                </button>
-                              </div>
-                            )}
+                              )}
+                            </div>
                           </div>
                         )}
                       </div>

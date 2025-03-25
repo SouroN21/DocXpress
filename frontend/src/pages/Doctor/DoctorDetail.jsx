@@ -3,37 +3,98 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 const DoctorDetail = () => {
-  const { id } = useParams();
+  const { id } = useParams(); // Doctor collection ID
   const [doctor, setDoctor] = useState(null);
+  const [feedbacks, setFeedbacks] = useState([]);
+  const [editFeedbackId, setEditFeedbackId] = useState(null);
+  const [editFeedbackData, setEditFeedbackData] = useState({ rating: 0, comment: '' });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const navigate = useNavigate();
   const token = localStorage.getItem('token');
+  const currentUserId = token ? JSON.parse(atob(token.split('.')[1])).id : null;
 
   useEffect(() => {
-    const fetchDoctor = async () => {
+    const fetchDoctorAndFeedback = async () => {
       if (!token) {
         navigate('/login');
         return;
       }
 
       try {
-        const response = await axios.get(`http://localhost:5000/doc/${id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setDoctor(response.data);
+        const config = { headers: { Authorization: `Bearer ${token}` } };
+
+        // Fetch doctor details first
+        const doctorRes = await axios.get(`http://localhost:5000/doc/${id}`, config);
+        const doctorData = doctorRes.data;
+        setDoctor(doctorData);
+      
+        // Fetch feedback using doctor's userId
+        const feedbackRes = await axios.get(
+          `http://localhost:5000/feedback/doctor/${doctorData.userId._id || doctorData.userId}`,
+          config
+        );
+        setFeedbacks(feedbackRes.data.feedbacks || []);
+        console.log('Feedbacks:', feedbackRes.data.feedbacks);
       } catch (err) {
-        setError(err.response?.data?.message || 'Error fetching doctor details');
+        setError(err.response?.data?.message || 'Error fetching doctor details or feedback');
+        console.error('Error:', err);
       } finally {
         setLoading(false);
       }
     };
-    fetchDoctor();
+    fetchDoctorAndFeedback();
   }, [id, token, navigate]);
 
   const handleBookAppointment = () => {
     if (!token) navigate('/login');
     else navigate(`/book-appointment/${id}`);
+  };
+
+  const handleEditFeedback = (feedback) => {
+    setEditFeedbackId(feedback._id);
+    setEditFeedbackData({ rating: feedback.rating, comment: feedback.comment || '' });
+  };
+
+  const handleUpdateFeedback = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      const response = await axios.put(
+        `http://localhost:5000/feedback/${editFeedbackId}`,
+        editFeedbackData,
+        config
+      );
+      setFeedbacks(
+        feedbacks.map((fb) => (fb._id === editFeedbackId ? response.data.feedback : fb))
+      );
+      setEditFeedbackId(null);
+      alert('Feedback updated successfully!');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to update feedback.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteFeedback = async (feedbackId) => {
+    if (!window.confirm('Are you sure you want to delete this feedback?')) return;
+    setLoading(true);
+    setError('');
+
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      await axios.delete(`http://localhost:5000/feedback/${feedbackId}`, config);
+      setFeedbacks(feedbacks.filter((fb) => fb._id !== feedbackId));
+      alert('Feedback deleted successfully!');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to delete feedback.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (loading) {
@@ -48,7 +109,7 @@ const DoctorDetail = () => {
     );
   }
 
-  if (error) {
+  if (error && !doctor) {
     return (
       <div className="max-w-md p-6 mx-auto mt-16 text-center text-red-700 bg-red-100 border-l-4 border-red-500 rounded-lg">
         {error}
@@ -91,32 +152,21 @@ const DoctorDetail = () => {
 
               {/* Details Section */}
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                {/* Left Column */}
                 <div className="p-6 bg-gray-100 rounded-lg">
                   <h3 className="mb-4 text-xl font-semibold text-gray-800">Professional Details</h3>
                   <div className="space-y-3 text-gray-700">
-                    <p>
-                      <strong>Experience:</strong> {doctor.yearsOfExperience} years
-                    </p>
-                    <p>
-                      <strong>Consultation Fee:</strong> ${doctor.consultationFee}
-                    </p>
-                    <p>
-                      <strong>Clinic Address:</strong> {doctor.clinicAddress || 'Not Available'}
-                    </p>
+                    <p><strong>Experience:</strong> {doctor.yearsOfExperience} years</p>
+                    <p><strong>Consultation Fee:</strong> ${doctor.consultationFee}</p>
+                    <p><strong>Clinic Address:</strong> {doctor.clinicAddress || 'Not Available'}</p>
                   </div>
                 </div>
-
-                {/* Right Column */}
                 <div className="p-6 bg-gray-100 rounded-lg">
                   <h3 className="mb-4 text-xl font-semibold text-gray-800">Availability</h3>
                   <ul className="space-y-2 text-gray-700">
                     {doctor.availability.map((slot, index) => (
                       <li key={index} className="flex items-center">
                         <span className="w-2 h-2 mr-2 bg-blue-500 rounded-full"></span>
-                        <span>
-                          {slot.day}: {slot.startTime} - {slot.endTime}
-                        </span>
+                        <span>{slot.day}: {slot.startTime} - {slot.endTime}</span>
                       </li>
                     ))}
                   </ul>
@@ -130,12 +180,108 @@ const DoctorDetail = () => {
                   {doctor.qualifications.map((qual, index) => (
                     <li key={index} className="flex items-center">
                       <span className="w-2 h-2 mr-2 bg-green-500 rounded-full"></span>
-                      <span>
-                        {qual.degree}, {qual.institution} ({qual.year})
-                      </span>
+                      <span>{qual.degree}, {qual.institution} ({qual.year})</span>
                     </li>
                   ))}
                 </ul>
+              </div>
+
+              {/* Feedback Section */}
+              <div className="p-6 bg-gray-100 rounded-lg">
+                <h3 className="mb-4 text-xl font-semibold text-gray-800">Patient Feedback</h3>
+                {feedbacks.length === 0 ? (
+                  <p className="text-gray-600">No feedback available for this doctor yet.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {feedbacks.map((feedback) => (
+                      <div key={feedback._id} className="p-4 bg-white rounded-lg shadow-sm">
+                        {editFeedbackId === feedback._id ? (
+                          <form onSubmit={handleUpdateFeedback} className="space-y-4">
+                            <div>
+                              <label className="block mb-1 text-sm font-medium text-gray-700">Rating (1-5)</label>
+                              <div className="flex gap-2">
+                                {[1, 2, 3, 4, 5].map((star) => (
+                                  <button
+                                    key={star}
+                                    type="button"
+                                    onClick={() => setEditFeedbackData({ ...editFeedbackData, rating: star })}
+                                    className={`text-2xl ${editFeedbackData.rating >= star ? 'text-yellow-400' : 'text-gray-300'} focus:outline-none`}
+                                  >
+                                    ★
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block mb-1 text-sm font-medium text-gray-700">Comment</label>
+                              <textarea
+                                value={editFeedbackData.comment}
+                                onChange={(e) => setEditFeedbackData({ ...editFeedbackData, comment: e.target.value })}
+                                className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                rows="3"
+                              />
+                            </div>
+                            <div className="flex gap-4">
+                              <button
+                                type="submit"
+                                className="px-4 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700"
+                                disabled={loading}
+                              >
+                                {loading ? 'Saving...' : 'Save'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditFeedbackId(null)}
+                                className="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </form>
+                        ) : (
+                          <div>
+                            <div className="flex items-center mb-2">
+                              <div className="flex">
+                                {[...Array(feedback.rating)].map((_, i) => (
+                                  <span key={i} className="text-xl text-yellow-400">★</span>
+                                ))}
+                                {[...Array(5 - feedback.rating)].map((_, i) => (
+                                  <span key={i} className="text-xl text-gray-300">★</span>
+                                ))}
+                              </div>
+                              <span className="ml-2 text-sm text-gray-500">
+                                by {feedback.userId?.firstName} {feedback.userId?.lastName} -{' '}
+                                {new Date(feedback.createdAt).toLocaleDateString()}
+                              </span>
+                            </div>
+                            <p className="text-gray-700">{feedback.comment || 'No comment provided.'}</p>
+                            {currentUserId === feedback.userId?._id && (
+                              <div className="flex gap-4 mt-3">
+                                <button
+                                  onClick={() => handleEditFeedback(feedback)}
+                                  className="px-4 py-2 text-white bg-yellow-500 rounded-lg hover:bg-yellow-600"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteFeedback(feedback._id)}
+                                  className="px-4 py-2 text-white bg-red-500 rounded-lg hover:bg-red-600"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {error && (
+                  <div className="p-3 mt-4 text-center text-red-700 bg-red-100 border-l-4 border-red-500 rounded-lg">
+                    {error}
+                  </div>
+                )}
               </div>
             </div>
           )}

@@ -12,6 +12,7 @@ const doctorRoutes = require("./routes/doctorRoutes");
 const reminderRoutes = require('./routes/reminderRoutes');
 const medicalHistory = require('./routes/medicalHistoryRoutes');
 const prescription = require('./routes/prescriptionRoutes');
+const feedback =require('./routes/feedbackRoutes');
 
 app.use(cors({ origin: 'http://localhost:3000' }));
 app.use(express.json());
@@ -27,5 +28,6 @@ app.use("/doc", doctorRoutes);
 app.use('/reminder', reminderRoutes);
 app.use('/medical-history',medicalHistory);
 app.use('/prescriptions',prescription);
+app.use('/feedback',feedback);
 
 app.listen(5000, () => console.log("Server running on port 5000"));
