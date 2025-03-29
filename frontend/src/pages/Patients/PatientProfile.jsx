@@ -98,15 +98,21 @@ const PatientProfile = () => {
   };
 
   const handleDeleteAccount = async () => {
-    if (!window.confirm('Delete account permanently?')) return;
+    if (!window.confirm('Delete account permanently? This action cannot be undone.')) return;
+  
     try {
-      await axios.delete('http://localhost:5000/user/self', {
+      // Decode token to get user ID
+      const decodedToken = JSON.parse(atob(token.split('.')[1]));
+      const userId = decodedToken.id;
+  
+      await axios.delete(`http://localhost:5000/user/${userId}`, {
         headers: { Authorization: `Bearer ${token.trim()}` },
       });
       localStorage.removeItem('token');
       navigate('/login');
-    } catch {
-      setError('Failed to delete account.');
+      alert('Account deleted successfully!');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to delete account.');
     }
   };
 

@@ -18,7 +18,7 @@ router.post("/register", createUser);
 router.post("/login", loginUser);
 router.get("/all", authenticate, authorize(["admin"]), getUsers);
 router.get("/:id", authenticate, getUserById);
-router.delete("/:id", authenticate, authorize(["admin"]), deleteUser);
+router.delete("/:id", authenticate, deleteUser);
 router.get('/patients', authenticate, authorize(['admin']), getAllPatients);
 router.delete('/self', authenticate, deleteSelf); 
 router.get('/profile', authenticate, getUserProfile);
