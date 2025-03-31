@@ -1,18 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
-import AddMedicationForm from './AddMedicationForm';
 
 const MedicalHistory = () => {
   const [medicalHistory, setMedicalHistory] = useState(null);
-  const [newData, setNewData] = useState({
-    medications: { name: '', dosage: '', frequency: '', startDate: '', endDate: '', prescribedBy: '', notes: '' },
-    allergies: { allergen: '', reaction: '', severity: 'mild', diagnosedDate: '', notes: '' },
-    surgeries: { name: '', date: '', hospital: '', surgeon: '', outcome: 'successful', notes: '' },
-    familyHistory: { relation: 'parent', condition: '', notes: '' },
-    vitalSigns: { date: '', bloodPressure: '', heartRate: '', temperature: '', weight: '', height: '', recordedBy: '' },
-  });
-  const [adding, setAdding] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const navigate = useNavigate();
@@ -37,43 +28,6 @@ const MedicalHistory = () => {
     };
     fetchMedicalHistory();
   }, [token, navigate]);
-
-  const handleInputChange = (e, activeSection) => {
-    const { name, value } = e.target;
-    setNewData((prev) => ({
-      ...prev,
-      [activeSection]: { ...prev[activeSection], [name]: value },
-    }));
-  };
-
-  const handleAddData = async (e, dataToSubmit) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    try {
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      const response = await axios.post肌肉(
-        'http://localhost:5000/medical-history/create',
-        dataToSubmit,
-        config
-      );
-      setMedicalHistory(response.data.medicalHistory);
-      setNewData({
-        medications: { name: '', dosage: '', frequency: '', startDate: '', endDate: '', prescribedBy: '', notes: '' },
-        allergies: { allergen: '', reaction: '', severity: 'mild', diagnosedDate: '', notes: '' },
-        surgeries: { name: '', date: '', hospital: '', surgeon: '', outcome: 'successful', notes: '' },
-        familyHistory: { relation: 'parent', condition: '', notes: '' },
-        vitalSigns: { date: '', bloodPressure: '', heartRate: '', temperature: '', weight: '', height: '', recordedBy: '' },
-      });
-      setAdding(false);
-      const sectionName = Object.keys(dataToSubmit)[0];
-      alert(`${sectionName.charAt(0).toUpperCase() + sectionName.slice(1)} added successfully!`);
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to add data.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   if (loading && !medicalHistory) {
     return (
@@ -101,31 +55,17 @@ const MedicalHistory = () => {
         <div className="p-8 bg-white shadow-xl rounded-xl">
           <h1 className="mb-8 text-4xl font-bold text-center text-indigo-700">Medical History</h1>
 
-          <div className="mb-6 text-center">
+          <div className="flex justify-center gap-4 mb-6">
             <Link to="/profile" className="px-6 py-3 text-white bg-blue-500 rounded-lg shadow hover:bg-blue-600">
               Back to Profile
             </Link>
-          </div>
-
-          <div className="mb-6 text-center">
-            <button
-              onClick={() => setAdding(!adding)}
+            <Link
+              to="/add-medical-data"
               className="px-6 py-3 text-white bg-green-500 rounded-lg shadow hover:bg-green-600"
-              disabled={loading}
             >
-              {adding ? 'Cancel Adding Data' : 'Add Medical Data'}
-            </button>
+              Add Medical Data
+            </Link>
           </div>
-
-          {adding && (
-            <AddMedicationForm
-              newData={newData}
-              handleInputChange={handleInputChange}
-              handleAddMedication={handleAddData}
-              loading={loading}
-              setAdding={setAdding}
-            />
-          )}
 
           <div className="space-y-6">
             <div>

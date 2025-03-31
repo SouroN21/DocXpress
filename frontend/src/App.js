@@ -19,6 +19,7 @@ import Reminders from './pages/Patients/Reminders';
 import AddPrescription from './pages/Prescription/Add-Prescription';
 import MedicalHistory from './pages/Prescription/MedicalHistory';
 import FeedbackForm from './Feedback/FeedbackForm';
+import AddMedicalData from './pages/Prescription/AddMedicalData';
 
 // Components
 import Header from './components/Header';
@@ -102,6 +103,7 @@ function App() {
           <Route path="/medical-history" element={<MedicalHistory />} />
           <Route path="/prescription/:id" element={<PrescriptionDetail />} />
           <Route path="/feedback/create/:appointmentId" element={<FeedbackForm />} />
+          <Route path="/add-medical-data" element={<AddMedicalData />} />
         </Routes>
       </AppLayout>
     </Router>

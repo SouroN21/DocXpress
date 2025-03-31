@@ -7,6 +7,7 @@ const PatientProfile = () => {
   const [appointments, setAppointments] = useState([]);
   const [filteredAppointments, setFilteredAppointments] = useState([]);
   const [prescriptions, setPrescriptions] = useState([]);
+  const [hasMedicalHistory, setHasMedicalHistory] = useState(false); // New state for medical history check
   const [editMode, setEditMode] = useState(false);
   const [editAppointmentId, setEditAppointmentId] = useState(null);
   const [editFormData, setEditFormData] = useState({ dateTime: '', mode: '' });
@@ -31,10 +32,11 @@ const PatientProfile = () => {
         const patientId = decodedToken.id;
         const config = { headers: { Authorization: `Bearer ${token.trim()}` } };
 
-        // Fetch profile and appointments together
-        const [profileRes, appointmentRes] = await Promise.all([
+        // Fetch profile, appointments, and medical history together
+        const [profileRes, appointmentRes, medicalHistoryRes] = await Promise.all([
           axios.get(`http://localhost:5000/user/${patientId}`, config),
           axios.get(`http://localhost:5000/appointment/patient/${patientId}`, config),
+          axios.get(`http://localhost:5000/medical-history/me`, config).catch(() => ({ data: null })), // Handle no history gracefully
         ]);
 
         setProfile(profileRes.data);
@@ -45,6 +47,16 @@ const PatientProfile = () => {
         });
         setAppointments(appointmentRes.data);
 
+        // Check if medical history exists
+        if (medicalHistoryRes.data && Object.keys(medicalHistoryRes.data).length > 0) {
+          const hasData = ['medications', 'allergies', 'surgeries', 'familyHistory', 'vitalSigns'].some(
+            (section) => medicalHistoryRes.data[section]?.length > 0
+          );
+          setHasMedicalHistory(hasData);
+        } else {
+          setHasMedicalHistory(false);
+        }
+
         // Fetch prescriptions separately
         try {
           const prescriptionRes = await axios.get(`http://localhost:5000/prescriptions/my-prescriptions`, config);
@@ -54,8 +66,8 @@ const PatientProfile = () => {
           setPrescriptions([]); // Set empty array if prescriptions fetch fails
         }
       } catch (err) {
-        setError('Failed to fetch profile or appointments.');
-        console.error('Error fetching profile/appointments:', err);
+        setError('Failed to fetch profile, appointments, or medical history.');
+        console.error('Error fetching data:', err);
       } finally {
         setLoading(false);
       }
@@ -99,12 +111,9 @@ const PatientProfile = () => {
 
   const handleDeleteAccount = async () => {
     if (!window.confirm('Delete account permanently? This action cannot be undone.')) return;
-  
     try {
-      // Decode token to get user ID
       const decodedToken = JSON.parse(atob(token.split('.')[1]));
       const userId = decodedToken.id;
-  
       await axios.delete(`http://localhost:5000/user/${userId}`, {
         headers: { Authorization: `Bearer ${token.trim()}` },
       });
@@ -196,7 +205,10 @@ const PatientProfile = () => {
             <Link to="/reminder" className="px-6 py-3 text-white bg-green-500 rounded-lg shadow hover:bg-green-600">
               Go to Medicine Reminders
             </Link>
-            <Link to="/medical-history" className="px-6 py-3 text-white bg-indigo-500 rounded-lg shadow hover:bg-indigo-600">
+            <Link
+              to={hasMedicalHistory ? '/medical-history' : '/add-medical-data'}
+              className="px-6 py-3 text-white bg-indigo-500 rounded-lg shadow hover:bg-indigo-600"
+            >
               Medical History
             </Link>
           </div>
