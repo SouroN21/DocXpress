@@ -1,15 +1,17 @@
-// components/Feedbacks.js
 import React from 'react';
 import axios from 'axios';
+import { motion } from 'framer-motion';
+import { FaStar, FaTrash } from 'react-icons/fa';
 
 const Feedbacks = ({ feedbacks, setFeedbacks, token }) => {
   const renderStars = (rating) => {
     return (
       <div className="flex">
         {[...Array(5)].map((_, i) => (
-          <span key={i} className={i < rating ? 'text-yellow-400' : 'text-gray-300'}>
-            ★
-          </span>
+          <FaStar
+            key={i}
+            className={i < rating ? 'text-yellow-400' : 'text-gray-300'}
+          />
         ))}
       </div>
     );
@@ -30,14 +32,18 @@ const Feedbacks = ({ feedbacks, setFeedbacks, token }) => {
     }
   };
 
-  // Calculate average rating
   const averageRating =
     feedbacks.reduce((sum, feedback) => sum + feedback.rating, 0) / feedbacks.length || 0;
 
   return (
-    <section className="p-6 bg-white rounded-lg shadow-md">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-2xl font-semibold text-gray-800">Patient Feedback</h3>
+    <motion.section
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      className="p-6 bg-white rounded-lg shadow-lg"
+    >
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-2xl font-bold text-gray-800">Patient Feedback</h3>
         {feedbacks.length > 0 && (
           <div className="flex items-center space-x-2">
             <span className="font-semibold text-gray-600">Average Rating:</span>
@@ -49,15 +55,22 @@ const Feedbacks = ({ feedbacks, setFeedbacks, token }) => {
         )}
       </div>
       {feedbacks.length === 0 ? (
-        <div className="p-4 text-center text-gray-500 bg-gray-100 rounded-md">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="p-4 text-center text-gray-500 bg-gray-100 rounded-md"
+        >
           No feedback available yet.
-        </div>
+        </motion.div>
       ) : (
         <div className="space-y-4">
           {feedbacks.map((feedback) => (
-            <div
+            <motion.div
               key={feedback._id}
-              className="p-4 transition duration-200 border border-gray-200 rounded-lg bg-gray-50 hover:shadow-md"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.3 }}
+              className="p-4 transition-transform transform border border-gray-200 rounded-lg bg-gray-50 hover:shadow-md hover:scale-105"
             >
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center">
@@ -70,20 +83,22 @@ const Feedbacks = ({ feedbacks, setFeedbacks, token }) => {
                   <span className="text-sm text-gray-500">
                     {new Date(feedback.createdAt).toLocaleDateString()}
                   </span>
-                  <button
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
                     onClick={() => handleDeleteFeedback(feedback._id)}
-                    className="px-3 py-1 text-sm text-white transition duration-150 bg-red-500 rounded-md hover:bg-red-600 focus:outline-none"
+                    className="p-2 text-white bg-red-500 rounded-full hover:bg-red-600 focus:outline-none"
                   >
-                    Delete
-                  </button>
+                    <FaTrash size={14} />
+                  </motion.button>
                 </div>
               </div>
               <p className="leading-relaxed text-gray-700">{feedback.comment || 'No comment provided.'}</p>
-            </div>
+            </motion.div>
           ))}
         </div>
       )}
-    </section>
+    </motion.section>
   );
 };
 
