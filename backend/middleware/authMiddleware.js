@@ -15,7 +15,7 @@ const authenticate = (req, res, next) => {
     res.status(401).json({ message: "Invalid token", error: error.message });
   }
 };
-
+ 
 const authorize = (roles) => {
   return (req, res, next) => {
     if (!roles.includes(req.user.role)) {
