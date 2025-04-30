@@ -11,7 +11,7 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASS, // Your email password or app-specific password
   },
 });
-
+ 
 // Create Prescription
 const createPrescription = async (req, res) => {
   try {
