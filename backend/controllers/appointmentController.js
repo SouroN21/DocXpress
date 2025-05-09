@@ -282,4 +282,4 @@ module.exports = {
   getDoctorAppointments,
   deleteAppointment,
   getAppointmentById,
-};
+}; 
