@@ -3,49 +3,43 @@ const mongoose = require('mongoose');
 const medicalHistorySchema = new mongoose.Schema({
   patientId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User', // Reference to the User model (assuming patients are users)
-    required: true,
-    index: true, // Improves query performance for lookups by patient
+    ref: 'User',
+    index: true,
   },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User', // Reference to the doctor or admin who created/updated the record
-    required: true,
+    ref: 'User',
   },
   conditions: [
     {
-      name: { type: String, required: true }, // e.g., "Diabetes", "Hypertension"
-      diagnosedDate: { type: Date, required: true },
+      name: { type: String },
+      diagnosedDate: { type: Date },
       status: {
         type: String,
         enum: ['active', 'resolved', 'chronic'],
         default: 'active',
       },
-      notes: { type: String }, // Additional details
+      notes: { type: String },
     },
   ],
   medications: [
     {
-      name: { type: String, required: true }, // e.g., "Metformin", "Lisinopril"
-      dosage: { type: String, required: true }, // e.g., "500 mg"
-      frequency: { type: String, required: true }, // e.g., "Twice daily"
-      startDate: { type: Date, required: true },
-      endDate: { type: Date }, // Optional, if medication is discontinued
-      prescribedBy: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User', // Doctor who prescribed it
-      },
+      name: { type: String },
+      dosage: { type: String },
+      frequency: { type: String },
+      startDate: { type: Date },
+      endDate: { type: Date },
+      prescribedBy: {  type: String,},
       notes: { type: String },
     },
   ],
   allergies: [
     {
-      allergen: { type: String, required: true }, // e.g., "Penicillin", "Peanuts"
-      reaction: { type: String, required: true }, // e.g., "Rash", "Anaphylaxis"
+      allergen: { type: String },
+      reaction: { type: String },
       severity: {
         type: String,
         enum: ['mild', 'moderate', 'severe'],
-        required: true,
       },
       diagnosedDate: { type: Date },
       notes: { type: String },
@@ -53,12 +47,12 @@ const medicalHistorySchema = new mongoose.Schema({
   ],
   surgeries: [
     {
-      name: { type: String, required: true }, // e.g., "Appendectomy"
-      date: { type: Date, required: true },
+      name: { type: String },
+      date: { type: Date },
       hospital: { type: String },
       surgeon: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User', // Doctor who performed the surgery
+        ref: 'User',
       },
       outcome: {
         type: String,
@@ -73,32 +67,30 @@ const medicalHistorySchema = new mongoose.Schema({
       relation: {
         type: String,
         enum: ['parent', 'sibling', 'grandparent', 'other'],
-        required: true,
       },
-      condition: { type: String, required: true }, // e.g., "Heart Disease"
+      condition: { type: String },
       notes: { type: String },
     },
   ],
   vitalSigns: [
     {
       date: { type: Date, default: Date.now },
-      bloodPressure: { type: String }, // e.g., "120/80 mmHg"
-      heartRate: { type: Number, min: 0 }, // e.g., 72 bpm
-      temperature: { type: Number }, // e.g., 98.6 F
-      weight: { type: Number, min: 0 }, // e.g., 70 kg
-      height: { type: Number, min: 0 }, // e.g., 170 cm
+      bloodPressure: { type: String },
+      heartRate: { type: Number, min: 0 },
+      temperature: { type: Number },
+      weight: { type: Number, min: 0 },
+      height: { type: Number, min: 0 },
       recordedBy: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User', // Doctor or staff who recorded it
+        ref: 'User',
       },
     },
   ],
-  notes: { type: String }, // General notes about the patient's history
+  notes: { type: String },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
 });
 
-// Update `updatedAt` before saving
 medicalHistorySchema.pre('save', function (next) {
   this.updatedAt = Date.now();
   next();
