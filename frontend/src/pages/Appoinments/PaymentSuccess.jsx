@@ -17,7 +17,7 @@ const PaymentSuccess = () => {
           { appointmentId },
           { headers: { Authorization: `Bearer ${token}` } }
         );
-        setTimeout(() => navigate('/'), 5000);
+        setTimeout(() => navigate('/'), 2000);
       } catch (err) {
         console.error('Error confirming payment:', err);
       }

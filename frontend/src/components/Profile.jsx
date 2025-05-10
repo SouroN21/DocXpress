@@ -91,6 +91,7 @@ const Profile = ({
                 </p>
               ))}
             </div>
+            {/** 
             <div className="flex space-x-4">
               <button
                 onClick={() => setEditMode(true)}
@@ -104,7 +105,7 @@ const Profile = ({
               >
                 Delete Profile
               </button>
-            </div>
+            </div>*/}
           </div>
         )
       ) : (

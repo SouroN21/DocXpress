@@ -1,8 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import axios from 'axios';
+import { jsPDF } from 'jspdf';
+import 'jspdf-autotable';
 
 const AdminDoctors = ({ doctors, onDoctorUpdate }) => {
   const token = localStorage.getItem('token');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [sortBy, setSortBy] = useState('name');
+  const [searchTerm, setSearchTerm] = useState('');
 
   const handleDeleteDoctor = async (doctorId) => {
     if (!window.confirm('Are you sure you want to delete this doctor profile?')) return;
@@ -13,7 +18,11 @@ const AdminDoctors = ({ doctors, onDoctorUpdate }) => {
       onDoctorUpdate(doctors.filter((doctor) => doctor._id !== doctorId));
       alert('Doctor profile deleted successfully');
     } catch (error) {
-      alert(error.response?.data?.message || 'Error deleting doctor profile');
+      alert(
+        error.response?.status === 403 ? 'Cannot delete doctor with active appointments.' :
+        error.response?.status === 404 ? 'Doctor profile not found.' :
+        error.response?.data?.message || 'Error deleting doctor profile'
+      );
     }
   };
 
@@ -31,28 +40,113 @@ const AdminDoctors = ({ doctors, onDoctorUpdate }) => {
       );
       alert('Doctor status updated successfully');
     } catch (error) {
-      alert(error.response?.data?.message || 'Error updating doctor status');
+      alert(
+        error.response?.status === 404 ? 'Doctor not found.' :
+        error.response?.data?.message || 'Error updating doctor status'
+      );
     }
   };
 
+  const generateDoctorReport = () => {
+    const doc = new jsPDF();
+    doc.text('Doctors Report', 20, 20);
+    doc.autoTable({
+      startY: 30,
+      head: [['Name', 'Specialization', 'Status', 'Email']],
+      body: filteredDoctors.map((doctor) => [
+        `${doctor.userId?.firstName || 'N/A'} ${doctor.userId?.lastName || ''}`,
+        doctor.specialization || 'N/A',
+        doctor.status || 'N/A',
+        doctor.userId?.email || 'N/A',
+      ]),
+    });
+    doc.save('doctors_report.pdf');
+  };
+
+  const filteredDoctors = doctors
+    .filter((doctor) =>
+      filterStatus === 'all' ? true : doctor.status === filterStatus
+    )
+    .filter((doctor) =>
+      `${doctor.userId?.firstName || ''} ${doctor.userId?.lastName || ''} ${doctor.specialization || ''}`
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase())
+    )
+    .sort((a, b) => {
+      if (sortBy === 'name') {
+        return `${a.userId?.firstName || ''} ${a.userId?.lastName || ''}`.localeCompare(
+          `${b.userId?.firstName || ''} ${b.userId?.lastName || ''}`
+        );
+      }
+      return (a.specialization || '').localeCompare(b.specialization || '');
+    });
+
   return (
     <div className="p-6 bg-white rounded-lg shadow-md">
-      <h3 className="mb-4 text-2xl font-semibold text-gray-800">Manage Doctors</h3>
-      {doctors.length === 0 ? (
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-2xl font-semibold text-gray-800">Manage Doctors</h3>
+        <button
+          onClick={generateDoctorReport}
+          className="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none"
+        >
+          Generate Report
+        </button>
+      </div>
+
+      {/* Filters and Search */}
+      <div className="flex flex-col gap-4 mb-6 sm:flex-row">
+        <div className="flex-1">
+          <label className="block text-sm font-medium text-gray-700">Search</label>
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search by name or specialization"
+            className="w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Filter by Status</label>
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="pending">Pending</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Sort by</label>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="name">Name</option>
+            <option value="specialization">Specialization</option>
+          </select>
+        </div>
+      </div>
+
+      {filteredDoctors.length === 0 ? (
         <p className="text-gray-500">No doctors found.</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-gray-200">
-                <th className="p-4 font-semibold">Name</th>
-                <th className="p-4 font-semibold">Specialization</th>
-                <th className="p-4 font-semibold">Status</th>
-                <th className="p-4 font-semibold">Action</th>
+              <tr className="bg-gray-100">
+                <th className="p-4 font-semibold text-gray-700">Name</th>
+                <th className="p-4 font-semibold text-gray-700">Specialization</th>
+                <th className="p-4 font-semibold text-gray-700">Email</th>
+                <th className="p-4 font-semibold text-gray-700">Status</th>
+                <th className="p-4 font-semibold text-gray-700">Action</th>
               </tr>
             </thead>
             <tbody>
-              {doctors.map((doctor) => (
+              {filteredDoctors.map((doctor) => (
                 <tr key={doctor._id} className="border-b hover:bg-gray-50">
                   <td className="p-4">
                     {doctor.userId?.firstName
@@ -60,6 +154,7 @@ const AdminDoctors = ({ doctors, onDoctorUpdate }) => {
                       : 'N/A'}
                   </td>
                   <td className="p-4">{doctor.specialization || 'N/A'}</td>
+                  <td className="p-4">{doctor.userId?.email || 'N/A'}</td>
                   <td className="p-4">
                     <select
                       value={doctor.status || 'pending'}
@@ -80,7 +175,8 @@ const AdminDoctors = ({ doctors, onDoctorUpdate }) => {
                   <td className="p-4">
                     <button
                       onClick={() => handleDeleteDoctor(doctor._id)}
-                      className="px-3 py-1 text-white bg-red-500 rounded-lg hover:bg-red-600"
+                      className="px-3 py-1 text-white bg-red-500 rounded-lg hover:bg-red-600 focus:outline-none"
+                      title="Delete doctor profile"
                     >
                       Delete
                     </button>

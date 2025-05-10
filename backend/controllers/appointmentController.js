@@ -13,20 +13,31 @@ const transporter = nodemailer.createTransport({
 });
 
 const sendAppointmentEmail = async (patient, doctor, appointment, action = 'scheduled') => {
-  const subject = action === 'updated' ? 'Appointment Updated' : action === 'deleted' ? 'Appointment Canceled' : 'New Appointment Scheduled';
-  const mailOptions = {
-    from: process.env.EMAIL_USER,
-    to: [patient.email, doctor.userId.email],
-    subject,
-    text: `An appointment has been ${action}:\n
-      Patient: ${patient.firstName} ${patient.lastName}\n
-      Doctor: ${doctor.userId.firstName} ${doctor.userId.lastName}\n
-      Date: ${new Date(appointment.dateTime).toLocaleString()}\n
-      Mode: ${appointment.mode}\n
-      Status: ${appointment.status}`,
-  };
+  try {
+    // Validate email fields
+    if (!patient.email || !doctor.email) {
+      throw new Error("Patient or doctor email is missing");
+    }
 
-  await transporter.sendMail(mailOptions);
+    const subject = action === 'updated' ? 'Appointment Updated' : action === 'deleted' ? 'Appointment Canceled' : 'New Appointment Scheduled';
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: [patient.email, doctor.email],
+      subject,
+      text: `An appointment has been ${action}:\n
+        Patient: ${patient.firstName} ${patient.lastName}\n
+        Doctor: ${doctor.firstName} ${doctor.lastName}\n
+        Date: ${new Date(appointment.dateTime).toLocaleString()}\n
+        Mode: ${appointment.mode}\n
+        Status: ${appointment.status}`,
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`Email sent for ${action} appointment`);
+  } catch (error) {
+    console.error(`Error sending ${action} email:`, error.message);
+    throw error; // Let caller handle the error
+  }
 };
 
 const createAppointment = async (req, res) => {
@@ -38,19 +49,19 @@ const createAppointment = async (req, res) => {
       return res.status(400).json({ message: "All required fields must be provided" });
     }
 
-    const doctor = await Doctor.findById(doctorId).populate('userId');
-    if (!doctor) {
+    const doctor = await Doctor.findById(doctorId).populate('userId', 'firstName lastName email');
+    if (!doctor || !doctor.userId) {
       return res.status(404).json({ message: "Doctor not found" });
     }
 
-    const patient = await User.findById(patientId);
+    const patient = await User.findById(patientId, 'firstName lastName email');
     if (!patient) {
       return res.status(404).json({ message: "Patient not found" });
     }
 
     const appointment = new Appointment({
       patientId,
-      doctorId: doctor.userId, // Store the User _id
+      doctorId: doctor.userId._id, // Store the User _id
       dateTime,
       mode,
       paidStatus: "Pending",
@@ -80,7 +91,7 @@ const createAppointment = async (req, res) => {
       metadata: { appointmentId: appointment._id.toString() },
     });
 
-    await sendAppointmentEmail(patient, doctor, appointment);
+    await sendAppointmentEmail(patient, doctor.userId, appointment);
 
     res.status(201).json({
       message: "Appointment created, proceed to payment",
@@ -96,13 +107,16 @@ const createAppointment = async (req, res) => {
 const updateAppointmentPayment = async (req, res) => {
   try {
     const { appointmentId } = req.body;
-    const appointment = await Appointment.findById(appointmentId).populate('patientId doctorId');
+    const appointment = await Appointment.findById(appointmentId).populate([
+      { path: 'patientId', select: 'firstName lastName email' },
+      { path: 'doctorId', select: 'firstName lastName email' },
+    ]);
     if (!appointment) {
       return res.status(404).json({ message: "Appointment not found" });
     }
 
     appointment.paidStatus = "Paid";
-    appointment.status = "Confirmed";
+    appointment.status = "Pending";
     await appointment.save();
 
     res.status(200).json({ message: "Payment confirmed", appointment });
@@ -144,6 +158,7 @@ const updateAppointmentStatus = async (req, res) => {
     res.status(500).json({ message: "Error updating appointment status", error: error.message });
   }
 };
+
 const getAppointmentById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -164,7 +179,6 @@ const getAppointmentById = async (req, res) => {
   }
 };
 
-// New function: Patient updates appointment (dateTime and mode)
 const updateAppointment = async (req, res) => {
   try {
     const { appointmentId, dateTime, mode } = req.body;
@@ -174,20 +188,33 @@ const updateAppointment = async (req, res) => {
       return res.status(400).json({ message: "Appointment ID and at least one field (dateTime or mode) are required" });
     }
 
-    const appointment = await Appointment.findById(appointmentId).populate('patientId doctorId');
+    const appointment = await Appointment.findById(appointmentId).populate([
+      { path: 'patientId', select: 'firstName lastName email' },
+      { path: 'doctorId', select: 'firstName lastName email' },
+    ]);
     if (!appointment) {
       return res.status(404).json({ message: "Appointment not found" });
+    }
+
+    if (!appointment.patientId || !appointment.doctorId) {
+      return res.status(400).json({ message: "Invalid patient or doctor reference" });
+    }
+
+    if (!appointment.patientId.email || !appointment.doctorId.email) {
+      return res.status(400).json({ message: "Patient or doctor email is missing" });
     }
 
     if (appointment.patientId._id.toString() !== userId) {
       return res.status(403).json({ message: "Only the patient who booked this appointment can update it" });
     }
 
-    if (appointment.paidStatus === 'Paid' || appointment.status === 'Confirmed' || appointment.status === 'Completed') {
-      return res.status(403).json({ message: "Cannot update a paid or confirmed/completed appointment" });
+    if (dateTime) {
+      appointment.dateTime = new Date(dateTime);
+      if (isNaN(appointment.dateTime)) {
+        return res.status(400).json({ message: "Invalid dateTime format" });
+      }
     }
 
-    if (dateTime) appointment.dateTime = dateTime;
     if (mode) {
       const validModes = ['In-Person', 'Online'];
       if (!validModes.includes(mode)) {
@@ -248,20 +275,30 @@ const deleteAppointment = async (req, res) => {
     const userId = req.user.id;
     const userRole = req.user.role;
 
-    const appointment = await Appointment.findById(appointmentId).populate('patientId doctorId');
+    const appointment = await Appointment.findById(appointmentId).populate([
+      { path: 'patientId', select: 'firstName lastName email' },
+      { path: 'doctorId', select: 'firstName lastName email' },
+    ]);
     if (!appointment) {
       return res.status(404).json({ message: "Appointment not found" });
     }
 
-    // Allow deletion by patient (if not paid/confirmed) or admin
+    if (!appointment.patientId || !appointment.doctorId) {
+      return res.status(400).json({ message: "Invalid patient or doctor reference" });
+    }
+
+    if (!appointment.patientId.email || !appointment.doctorId.email) {
+      return res.status(400).json({ message: "Patient or doctor email is missing" });
+    }
+
     if (appointment.patientId._id.toString() !== userId && userRole !== 'admin') {
       return res.status(403).json({ message: "Only the patient or an admin can delete this appointment" });
     }
-
+{/** 
     if (appointment.patientId._id.toString() === userId && (appointment.paidStatus === 'Paid' || appointment.status === 'Confirmed')) {
       return res.status(403).json({ message: "Cannot delete a paid or confirmed appointment" });
     }
-
+*/}
     await Appointment.findByIdAndDelete(appointmentId);
     await sendAppointmentEmail(appointment.patientId, appointment.doctorId, appointment, 'deleted');
 
@@ -276,7 +313,7 @@ module.exports = {
   createAppointment,
   updateAppointmentPayment,
   updateAppointmentStatus,
-  updateAppointment, 
+  updateAppointment,
   getAllAppointments,
   getPatientAppointments,
   getDoctorAppointments,
